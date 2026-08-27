@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     google_api_key: str = ""
     gemini_model: str = "gemini-flash-latest"
-    gemma_model: str = "gemma-3-27b-it"
+    gemma_model: str = "gemma-4-4b-it"
 
     google_cloud_project: str = ""
     firestore_database: str = "(default)"

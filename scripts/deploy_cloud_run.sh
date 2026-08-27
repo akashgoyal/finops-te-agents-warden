@@ -16,7 +16,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --memory=512Mi \
   --cpu=1 \
   --allow-unauthenticated \
-  --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},WARDEN_STUB_MODE=false,GEMINI_MODEL=${GEMINI_MODEL:-gemini-flash-latest},GEMMA_MODEL=${GEMMA_MODEL:-gemma-3-27b-it}" \
+  --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},WARDEN_STUB_MODE=false,GEMINI_MODEL=${GEMINI_MODEL:-gemini-flash-latest},GEMMA_MODEL=${GEMMA_MODEL:-gemma-4-4b-it}" \
   --set-secrets="GOOGLE_API_KEY=warden-google-api-key:latest,WARDEN_SECRET_KEY=warden-secret-key:latest"
 
 echo "==> Deployed. min-instances=0 means it scales to zero between demo runs — no idle cost."

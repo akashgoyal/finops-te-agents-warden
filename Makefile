@@ -1,4 +1,4 @@
-.PHONY: install dev demo test deploy
+.PHONY: install dev demo smoke-test test deploy
 
 install:
 	python3 -m venv .venv
@@ -10,6 +10,9 @@ dev:
 
 demo:
 	.venv/bin/python -m demo.run_demo
+
+smoke-test:
+	.venv/bin/python -m scripts.smoke_test_models
 
 test:
 	.venv/bin/pytest -q

@@ -61,9 +61,19 @@ make demo            # in a second terminal — runs the happy path + exploit
 
 `.env` ships with `WARDEN_STUB_MODE=true`, so this all works with **no API
 key and no GCP project** — triage and review use deterministic stand-ins.
-Once you've got a free key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey),
-drop it into `.env` as `GOOGLE_API_KEY` and set `WARDEN_STUB_MODE=false` to
-use the real Gemma triage + Gemini reviewer.
+Once you've got a free key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey):
+
+```bash
+# .env: set GOOGLE_API_KEY, then WARDEN_STUB_MODE=false
+make smoke-test       # one cheap call to each model — confirms key + model ids work
+make demo              # now runs against the real Gemma triage + Gemini reviewer
+```
+
+Model ids move fast. `GEMINI_MODEL=gemini-flash-latest` is a rolling alias so
+it shouldn't go stale. `GEMMA_MODEL` defaults to `gemma-4-4b-it` — Gemma 4's
+smallest size, deliberately: triage should be the cheapest model that still
+works, not the strongest one. If `make smoke-test` 404s on either, the id
+changed — check [ai.google.dev/gemini-api/docs/models](https://ai.google.dev/gemini-api/docs/models).
 
 ```bash
 make test            # runs entirely in stub mode, no network calls
