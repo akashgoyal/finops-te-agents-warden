@@ -42,6 +42,38 @@ def test_out_of_scope_call_is_blocked():
     assert body["token"] is None
 
 
+def test_over_cap_payment_escalates_without_calling_a_model():
+    # payment_agent is in scope and would pass triage — this only blocks
+    # because of warden/guardrails.py's deterministic check, which runs
+    # before triage/review and doesn't depend on stub mode being on.
+    resp = client.post(
+        "/v1/authorize",
+        json={
+            "agent_id": "payment_agent",
+            "tool": "payments.charge",
+            "args": {"amount_usd": 5000, "user_confirmed": True},
+            "reason": "test",
+        },
+    )
+    body = resp.json()
+    assert body["decision"] == "escalate"
+    assert body["reviewed_by"] == "hard-limit-guardrail"
+    assert body["token"] is None
+
+
+def test_within_cap_payment_is_unaffected_by_the_guardrail():
+    resp = client.post(
+        "/v1/authorize",
+        json={
+            "agent_id": "payment_agent",
+            "tool": "payments.charge",
+            "args": {"amount_usd": 500, "user_confirmed": True},
+            "reason": "test",
+        },
+    )
+    assert resp.json()["decision"] == "allow"
+
+
 def test_unregistered_agent_is_blocked():
     resp = client.post(
         "/v1/authorize",

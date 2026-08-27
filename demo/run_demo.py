@@ -1,13 +1,18 @@
 """The exact path the 4-minute submission video records.
 
 Run `uvicorn warden.gateway:app --reload` in one terminal, then
-`python -m demo.run_demo` from the repo root in another. Two passes:
+`python -m demo.run_demo` from the repo root in another. Three passes,
+each hitting a different decision Warden can make:
 
-  1. The happy path — search, hold, pay — all in scope, all allowed.
-  2. The exploit attempt — booking_agent tries to charge a payment directly,
-     mirroring the real 2026 incident pattern (an agent reaching for a tool
-     outside what it was ever scoped to touch). Warden blocks it and the
-     block lands in the audit log with a rationale, not silently.
+  1. Happy path — search, hold, pay — all in scope. ALLOW, three times.
+  2. Exploit attempt — booking_agent tries to charge a payment directly,
+     mirroring the real 2026 incident pattern (an agent reaching for a
+     tool outside what it was ever scoped to touch). BLOCK, with a
+     rationale, not silently.
+  3. Over-the-cap payment — payment_agent is in scope and confirmed, but
+     asks for more than its declared $2,000 limit. ESCALATE — this one's
+     decided by warden/guardrails.py before any model even runs, so it's
+     as reliable as the happy path, not dependent on a model's judgment.
 
 Point the dashboard (http://localhost:8080/) at this while it runs.
 """
@@ -58,7 +63,21 @@ def exploit_attempt() -> None:
     )
 
 
+def over_cap_payment() -> None:
+    print("\n=== Over-the-cap payment: payment_agent, in scope, over the limit ===")
+    _show(
+        "payment_agent -> payments.charge  ($5,000 > $2,000 cap)",
+        call_via_warden(
+            "payment_agent",
+            "payments.charge",
+            {"amount_usd": 5000, "user_confirmed": True},
+            "user confirmed a larger last-minute fare change",
+        ),
+    )
+
+
 if __name__ == "__main__":
     happy_path()
     exploit_attempt()
+    over_cap_payment()
     print("\nFull audit trail: GET http://localhost:8080/v1/log")

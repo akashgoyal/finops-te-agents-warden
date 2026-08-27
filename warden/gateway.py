@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from warden import auth_token, triage
+from warden.guardrails import check_hard_limits
 from warden.ledger import get_ledger
 from warden.models import AuditRecord, Decision, ReviewResult, ToolCallRequest
 from warden.registry import InMemoryRegistry, get_registry
@@ -56,15 +57,19 @@ def dashboard() -> FileResponse:
 def authorize(request: ToolCallRequest) -> dict:
     scope = _registry.get(request.agent_id)
 
-    fast_path = triage.quick_check(request, scope)
-    if fast_path == "safe":
-        result = ReviewResult(
-            decision=Decision.ALLOW,
-            rationale="Cleared by Gemma triage — plainly in scope.",
-            reviewed_by="gemma-triage",
-        )
+    hard_limit = check_hard_limits(request, scope)
+    if hard_limit is not None:
+        result = hard_limit
     else:
-        result = review(request, scope)
+        fast_path = triage.quick_check(request, scope)
+        if fast_path == "safe":
+            result = ReviewResult(
+                decision=Decision.ALLOW,
+                rationale="Cleared by Gemma triage — plainly in scope.",
+                reviewed_by="gemma-triage",
+            )
+        else:
+            result = review(request, scope)
 
     token = None
     if result.decision == Decision.ALLOW:

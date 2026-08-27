@@ -77,9 +77,10 @@ def _gemini_generate(model: str, prompt: str) -> str:
 
 
 def _stub_quick_check(request: ToolCallRequest, scope: AgentScope) -> str:
-    """Deterministic stand-in so the demo runs before any API key is wired up."""
-    if scope.max_call_value_usd is not None:
-        value = request.args.get("amount_usd")
-        if isinstance(value, (int, float)) and value > scope.max_call_value_usd:
-            return "review"
+    """Deterministic stand-in so the demo runs before any API key is wired up.
+
+    Doesn't need to check max_call_value_usd — the gateway runs
+    warden/guardrails.py's hard-limit check before triage is even called,
+    for exactly this kind of unambiguous numeric rule.
+    """
     return "safe"
