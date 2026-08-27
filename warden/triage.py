@@ -40,17 +40,40 @@ def quick_check(request: ToolCallRequest, scope: AgentScope | None) -> str:
     if settings.stub_mode:
         return _stub_quick_check(request, scope)
 
-    from google import genai
-
-    client = genai.Client(api_key=settings.google_api_key)
     prompt = _TRIAGE_PROMPT.format(
         allowed_tools=", ".join(scope.allowed_tools),
         tool=request.tool,
         args=request.args,
     )
-    response = client.models.generate_content(model=settings.gemma_model, contents=prompt)
-    text = (response.text or "").strip().upper()
-    return "safe" if text.startswith("SAFE") else "review"
+
+    if settings.model_backend == "ollama":
+        text = _ollama_generate(settings.ollama_triage_model, prompt)
+    else:
+        text = _gemini_generate(settings.gemma_model, prompt)
+
+    return "safe" if text.strip().upper().startswith("SAFE") else "review"
+
+
+def _ollama_generate(model: str, prompt: str) -> str:
+    import httpx
+
+    settings = get_settings()
+    resp = httpx.post(
+        f"{settings.ollama_host}/api/chat",
+        json={"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()["message"]["content"]
+
+
+def _gemini_generate(model: str, prompt: str) -> str:
+    from google import genai
+
+    settings = get_settings()
+    client = genai.Client(api_key=settings.google_api_key)
+    response = client.models.generate_content(model=model, contents=prompt)
+    return response.text or ""
 
 
 def _stub_quick_check(request: ToolCallRequest, scope: AgentScope) -> str:

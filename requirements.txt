@@ -12,3 +12,12 @@ httpx==0.28.1
 google-genai
 google-adk
 google-cloud-firestore
+
+# Local-first dev: ADK talks to Ollama through LiteLLM. litellm needs
+# Python 3.11+ (typing.NotRequired) — see .tool-versions.
+litellm
+ollama
+# Pip's resolver sometimes settles on an adk version whose `deprecated`
+# dependency doesn't get pulled in transitively when litellm's constraints
+# are in the same install — pinning it directly avoids a broken import.
+Deprecated

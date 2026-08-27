@@ -11,22 +11,36 @@ load_dotenv()
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    # "ollama" (local, free, default — get this working first) | "gemini" (cloud)
+    model_backend: str = "ollama"
+
+    ollama_host: str = "http://localhost:11434"
+    # Small on purpose, and both already common in a local Ollama library —
+    # no multi-GB pull needed before you can see this run. Swap freely; just
+    # keep triage smaller than review, that split is the point of triage.
+    ollama_triage_model: str = "gemma2:2b"
+    ollama_review_model: str = "gemma2:2b"
+
     google_api_key: str = ""
     gemini_model: str = "gemini-flash-latest"
-    gemma_model: str = "gemma-4-4b-it"
+    gemma_model: str = "gemma-4-4b-it"  # used only once model_backend == "gemini"
 
     google_cloud_project: str = ""
     firestore_database: str = "(default)"
 
     warden_secret_key: str = "change-me-to-a-random-string"
-    warden_stub_mode: bool = True
+    # Deterministic, zero-model fallback — for tests/CI, not for seeing it work.
+    warden_stub_mode: bool = False
 
     port: int = 8080
 
     @property
     def stub_mode(self) -> bool:
-        # Never call a paid/rate-limited model without a key — fall back to stubs.
-        return self.warden_stub_mode or not self.google_api_key
+        if self.warden_stub_mode:
+            return True
+        # Never call the Gemini backend without a key — fail closed to stub,
+        # not to a crash. Ollama needs no key, so this doesn't touch it.
+        return self.model_backend == "gemini" and not self.google_api_key
 
 
 @lru_cache

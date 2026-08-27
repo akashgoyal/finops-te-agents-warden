@@ -23,7 +23,7 @@ flowchart LR
     A[Fleet agent<br/>search / booking / payment] -- proposed tool call --> G[Gateway<br/>Cloud Run]
     G --> T{Gemma triage<br/>free, fast}
     T -- plainly in scope --> ALLOW1[Allow]
-    T -- ambiguous / out of scope --> R[Gemini 3.5 Flash<br/>policy reviewer]
+    T -- ambiguous / out of scope --> R[ADK policy reviewer<br/>Ollama locally / Gemini 3.5 Flash in the cloud]
     R --> D{Decision}
     D -- allow --> TOK[Sign authorization token]
     D -- block / escalate --> LOG
@@ -38,9 +38,11 @@ flowchart LR
 2. **Triage** — Gemma checks the call against the agent's declared scope in
    one cheap pass (`warden/triage.py`). Plainly-fine calls stop here for
    free; nothing else touches a paid-tier-adjacent model.
-3. **Review** — anything ambiguous escalates to an ADK agent backed by
-   Gemini 3.5 Flash, which reasons over `demo/policy.md` and returns a
-   structured decision with a rationale (`warden/reviewer_agent.py`).
+3. **Review** — anything ambiguous escalates to an ADK agent that reasons
+   over `demo/policy.md` and returns a structured decision with a rationale
+   (`warden/reviewer_agent.py`). The agent definition never changes — only
+   its model does: Ollama (local, via LiteLLM) by default, Gemini 3.5 Flash
+   once `MODEL_BACKEND=gemini`.
 4. **Decide + log** — an allow gets a signed, task-bounded token
    (`warden/auth_token.py`); every decision — allow, block, or escalate —
    lands in a hash-chained Firestore ledger (`warden/ledger.py`) and shows
@@ -51,32 +53,42 @@ The demo fleet (`demo/`) runs a normal booking flow, then has
 declared scope, mirroring the real 2026 incident pattern. Warden blocks it
 live. That's the moment the submission video is built around.
 
-## Quickstart (local, zero cost, zero setup)
+## Quickstart — local models first, cloud later
+
+Requires **Python 3.11+** (litellm needs it) and [Ollama](https://ollama.com)
+running locally. `.env` defaults to `MODEL_BACKEND=ollama` — real model
+behavior, zero API key, zero GCP project, zero cost.
 
 ```bash
-make install        # venv + deps, copies .env.example -> .env
-make dev             # gateway on http://localhost:8080, dashboard at /
-make demo            # in a second terminal — runs the happy path + exploit
+ollama pull gemma2:2b     # skip if you already have it — `ollama list` to check
+ollama serve                # if it isn't already running as a background service
+
+make install               # venv + deps, copies .env.example -> .env
+make smoke-test              # one cheap call to each model — confirms Ollama actually answers
+make dev                      # gateway on http://localhost:8080, dashboard at /
+make demo                      # in a second terminal — happy path + exploit attempt
 ```
 
-`.env` ships with `WARDEN_STUB_MODE=true`, so this all works with **no API
-key and no GCP project** — triage and review use deterministic stand-ins.
-Once you've got a free key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey):
+`gemma2:2b` is a deliberate choice, not the only option — small enough to be
+fast on a laptop CPU, no multi-GB download if you don't already have it.
+Swap `OLLAMA_TRIAGE_MODEL` / `OLLAMA_REVIEW_MODEL` in `.env` for anything
+else already in `ollama list`; just keep triage the smaller of the two,
+that split is the point of triage. **Once the exploit-block demo runs clean
+against real local models**, move to the cloud:
 
 ```bash
-# .env: set GOOGLE_API_KEY, then WARDEN_STUB_MODE=false
-make smoke-test       # one cheap call to each model — confirms key + model ids work
-make demo              # now runs against the real Gemma triage + Gemini reviewer
+# .env: MODEL_BACKEND=gemini, GOOGLE_API_KEY=<from aistudio.google.com/apikey>
+make smoke-test       # same script, now checks Gemini + Gemma-on-AI-Studio instead
+make demo              # same demo, same code path — only the model backend changed
 ```
 
-Model ids move fast. `GEMINI_MODEL=gemini-flash-latest` is a rolling alias so
-it shouldn't go stale. `GEMMA_MODEL` defaults to `gemma-4-4b-it` — Gemma 4's
-smallest size, deliberately: triage should be the cheapest model that still
-works, not the strongest one. If `make smoke-test` 404s on either, the id
-changed — check [ai.google.dev/gemini-api/docs/models](https://ai.google.dev/gemini-api/docs/models).
+`GEMINI_MODEL=gemini-flash-latest` is a rolling alias so it shouldn't go
+stale; `GEMMA_MODEL` defaults to `gemma-4-4b-it`. If `make smoke-test` 404s
+on either, the id changed — check
+[ai.google.dev/gemini-api/docs/models](https://ai.google.dev/gemini-api/docs/models).
 
 ```bash
-make test            # runs entirely in stub mode, no network calls
+make test            # runs entirely in stub mode (WARDEN_STUB_MODE=true), no network calls
 ```
 
 ## Deploying (also free-tier, once you have a GCP project)
@@ -99,8 +111,9 @@ chosen to fit Google's Always Free tier:
 
 | Piece | Cost |
 |---|---|
-| Gemini 3.5 Flash | Free tier (satisfies the hackathon's model requirement) |
-| Gemma | Free via AI Studio, or run fully locally |
+| Ollama (dev default) | $0 — fully local, no account, no rate limit |
+| Gemini 3.5 Flash (once deployed) | Free tier (satisfies the hackathon's model requirement) |
+| Gemma | Free via AI Studio, or fully local via Ollama |
 | ADK | Open source |
 | Cloud Run | Always Free tier at hackathon-demo traffic, scaled to zero |
 | Firestore | Always Free tier (1GiB, 50k reads / 20k writes per day) |
@@ -119,7 +132,7 @@ warden/
   registry.py           agent scopes — Firestore, or in-memory for local dev
   ledger.py              hash-chained audit log — Firestore or in-memory
   triage.py                Gemma first-pass filter
-  reviewer_agent.py         ADK agent + Gemini 3.5 Flash policy review
+  reviewer_agent.py         ADK agent — Ollama locally, Gemini in the cloud
   auth_token.py               signs/verifies task-bounded tokens
   gateway.py                    FastAPI app tying it together
 demo/
@@ -141,3 +154,11 @@ tests/                  stub-mode tests, no network calls
   `auth_token.py` in a real deployment — left out here specifically because
   it likely needs billed Vertex AI Agent Builder usage, which wasn't
   available for this build.
+- `gemma2:2b` is genuinely noisy as a reviewer, not just a triage filter —
+  in one local run it blocked a legitimate `flights.hold` call with a
+  rationale that hallucinated a different tool entirely. The next run was
+  clean end-to-end. Triage over-escalating is cheap and safe (worst case,
+  an extra review hop); the reviewer itself reasoning incorrectly is the
+  actual risk this project exists to catch, in its own dependency. This is
+  the concrete reason `MODEL_BACKEND=gemini` exists as a one-line switch
+  rather than shipping only on a 2B local model.

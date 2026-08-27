@@ -54,16 +54,37 @@ def review(request: ToolCallRequest, scope: AgentScope | None) -> ReviewResult:
         f"stated_reason={request.reason!r}"
     )
 
+    reviewer_label = (
+        f"ollama-reviewer:{settings.ollama_review_model}"
+        if settings.model_backend == "ollama"
+        else f"gemini-reviewer:{settings.gemini_model}"
+    )
+
     try:
         decision, rationale = _run_adk_turn(prompt)
     except Exception as exc:  # ADK/model hiccup — fail closed, never fail open
         return ReviewResult(
             decision=Decision.ESCALATE,
             rationale=f"Reviewer error, escalating to a human: {exc}",
-            reviewed_by="gemini-reviewer",
+            reviewed_by=reviewer_label,
         )
 
-    return ReviewResult(decision=decision, rationale=rationale, reviewed_by="gemini-reviewer")
+    return ReviewResult(decision=decision, rationale=rationale, reviewed_by=reviewer_label)
+
+
+def _resolve_model():
+    """Same ADK Agent either way — only the model backend changes.
+
+    Local dev (default): Ollama, via ADK's LiteLLM wrapper — no API key,
+    no cloud call, no rate limit. Once that's proven out, flip
+    MODEL_BACKEND=gemini in .env and nothing else in this file changes.
+    """
+    settings = get_settings()
+    if settings.model_backend == "ollama":
+        from google.adk.models.lite_llm import LiteLlm
+
+        return LiteLlm(model=f"ollama_chat/{settings.ollama_review_model}", api_base=settings.ollama_host)
+    return settings.gemini_model  # ADK accepts a plain Gemini model string directly
 
 
 def _run_adk_turn(prompt: str) -> tuple[Decision, str]:
@@ -71,10 +92,9 @@ def _run_adk_turn(prompt: str) -> tuple[Decision, str]:
     from google.adk.runners import InMemoryRunner
     from google.genai import types
 
-    settings = get_settings()
     agent = Agent(
         name="policy_reviewer",
-        model=settings.gemini_model,
+        model=_resolve_model(),
         description="Reviews agent tool calls against Warden's fleet policy.",
         instruction=_INSTRUCTION,
     )
