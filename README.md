@@ -76,6 +76,23 @@ submission video is built around. A third pass — `payment_agent`, in
 scope, asking for more than its approval limit — shows the same gateway
 enforcing an ordinary T&E spend cap, not just an exploit.
 
+## The dashboard — trigger it, watch it, from one screen
+
+`http://localhost:8080/` isn't a log viewer, it's a live console:
+
+- **Run fleet scenario** button triggers `demo/scenarios.py` in-process
+  (`POST /v1/demo/run`) — no terminal needed.
+- **Traveler app** panel — what an employee booking the trip would see,
+  in plain language, updating as each step resolves.
+- **Live agent trace** panel — the technical view of the same run: every
+  stage (guardrail → triage → review) as it happens, not after the fact.
+- Both panels, the pipeline strip, and the stat tiles are all driven by
+  one `GET /v1/events` Server-Sent Events stream — `warden/events.py` is a
+  simple in-process pub/sub that `warden/gateway.py` publishes to at every
+  stage of `_process_call()`, not just the final decision. `/v1/log` is
+  only used once, on page load, to backfill history from the ledger.
+- The audit ledger feed below is filterable and expandable, same as before.
+
 ## Quickstart — local models first, cloud later
 
 Requires **Python 3.11+** (litellm needs it) and [Ollama](https://ollama.com)
@@ -158,13 +175,15 @@ warden/
   triage.py                Gemma first-pass filter
   reviewer_agent.py         ADK agent — Ollama locally, Gemini in the cloud
   auth_token.py               signs/verifies task-bounded tokens
-  gateway.py                    FastAPI app tying it together
+  events.py                     in-process pub/sub feeding the SSE stream
+  gateway.py                      FastAPI app — authorize, demo/run, events, log
 demo/
   policy.md            the fleet's plain-language policy
   scopes.py             the same policy, machine-readable
-  fleet_agents.py         the three demo agents + their tools
-  run_demo.py               the exact script the video records
-dashboard/static/     live log viewer served at /
+  scenarios.py           the five demo calls — shared by run_demo.py and /v1/demo/run
+  fleet_agents.py           the three demo agents + their tools
+  run_demo.py                 CLI runner, same scenarios the dashboard's Run button uses
+dashboard/static/     live console — traveler view + agent trace + ledger, served at /
 scripts/               GCP setup + Cloud Run deploy
 tests/                  stub-mode tests, no network calls
 ```

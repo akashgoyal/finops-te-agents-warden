@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
 <style>
   /* Dark, mission-control look, committed on purpose — this is a live ops
      console, not a document, and it needs to read at a glance on camera. */
@@ -39,29 +40,32 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
   }
+  [x-cloak] { display: none !important; }
   body {
     margin: 0; background: var(--bg); color: var(--ink);
     font-family: var(--font-body); font-size: 14px; line-height: 1.5;
   }
-  .shell { max-width: 1080px; margin: 0 auto; padding: 22px 24px 60px; }
+  .shell { max-width: 1240px; margin: 0 auto; padding: 22px 24px 60px; }
   button { font-family: inherit; cursor: pointer; }
   code { font-family: var(--font-mono); }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* ---------- top bar ---------- */
-  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
   .brand { display: flex; align-items: center; gap: 12px; }
   .brand-mark { font-size: 26px; line-height: 1; }
   .brand-name { font-family: var(--font-display); font-weight: 800; font-size: 19px; letter-spacing: -0.01em; }
   .brand-tag { font-size: 12px; color: var(--ink-faint); }
+  .topbar-right { display: flex; align-items: center; gap: 8px; }
   .live-status { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-soft); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px 6px 10px; }
   .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-faint); flex: none; }
   .live-dot.on { background: var(--allow); animation: pulse 1.8s infinite; }
   .live-dot.off { background: var(--block); }
   @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(79,169,148,.45); } 70% { box-shadow: 0 0 0 6px rgba(79,169,148,0); } 100% { box-shadow: 0 0 0 0 rgba(79,169,148,0); } }
-  .refresh-btn { display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--line); color: var(--ink-soft); border-radius: 8px; padding: 7px 10px; font-size: 12px; }
-  .refresh-btn:hover { border-color: var(--accent); color: var(--ink); }
-  .refresh-btn.spin svg { animation: spin .6s linear; }
+  .run-btn { display: flex; align-items: center; gap: 8px; background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent); font-weight: 600; border-radius: 8px; padding: 9px 16px; font-size: 13px; transition: filter .15s ease; }
+  .run-btn:hover:not(:disabled) { filter: brightness(1.08); }
+  .run-btn:disabled { opacity: .7; cursor: default; }
+  .spinner { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(20,22,26,.35); border-top-color: var(--accent-ink); animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ---------- pipeline ---------- */
@@ -73,6 +77,48 @@
   .pipe-node.lit { background: var(--accent-tint); transform: translateY(-1px); }
   .pipe-node.lit .pipe-icon { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); box-shadow: 0 0 0 4px var(--accent-tint); }
   .pipe-node.lit span:last-child { color: var(--ink); }
+
+  /* ---------- live two-panel section ---------- */
+  .live-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+  @media (max-width: 860px) { .live-grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
+  .panel-head { padding: 13px 16px; border-bottom: 1px solid var(--line-soft); }
+  .panel-title { font-family: var(--font-display); font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 7px; }
+  .panel-sub { font-size: 11px; color: var(--ink-faint); margin-top: 1px; }
+  .panel-body { padding: 14px 16px; overflow-y: auto; max-height: 360px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
+  .panel-empty { color: var(--ink-faint); font-size: 12.5px; text-align: center; padding: 30px 10px; }
+
+  /* traveler trip summary */
+  .trip-card { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; margin: 14px 16px 0; font-size: 13px; }
+  .trip-route { font-family: var(--font-mono); font-weight: 600; }
+  .trip-fare { font-family: var(--font-mono); color: var(--accent); font-weight: 600; }
+
+  /* traveler steps */
+  .t-step { display: flex; align-items: center; gap: 10px; padding: 9px 11px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; }
+  .t-step-icon { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex: none; font-size: 11px; background: var(--line-soft); color: var(--ink-faint); }
+  .t-step.active .t-step-icon { background: var(--accent-tint); color: var(--accent); }
+  .t-step.allow .t-step-icon { background: var(--allow-tint); color: var(--allow); }
+  .t-step.block .t-step-icon { background: var(--block-tint); color: var(--block); }
+  .t-step.escalate .t-step-icon { background: var(--escalate-tint); color: var(--escalate); }
+  .t-step-text { font-size: 12.5px; color: var(--ink-soft); }
+  .t-step.allow .t-step-text, .t-step.block .t-step-text, .t-step.active .t-step-text { color: var(--ink); }
+  .dot-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse2 1s infinite; }
+  @keyframes pulse2 { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+
+  /* trace entries */
+  .trace-entry { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .trace-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .trace-agent { font-weight: 600; font-size: 12.5px; }
+  .trace-tool { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); }
+  .trace-steps { display: flex; align-items: center; gap: 4px; }
+  .t-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); border: 1px solid var(--line); flex: none; transition: all .2s ease; }
+  .t-dot.checking { background: var(--accent); animation: pulse2 .8s infinite; }
+  .t-dot.done { background: var(--accent); }
+  .t-dot-line { width: 10px; height: 1px; background: var(--line); }
+  .trace-decision { margin-top: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .trace-rationale { font-size: 11.5px; color: var(--ink-faint); margin-top: 4px; line-height: 1.4; }
+  .trace-labels { display: flex; justify-content: space-between; margin-top: 4px; }
+  .trace-labels span { font-family: var(--font-mono); font-size: 8.5px; color: var(--ink-faint); text-transform: uppercase; width: 20px; text-align: center; }
 
   /* ---------- stats ---------- */
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
@@ -89,6 +135,7 @@
 
   /* ---------- feed controls ---------- */
   .feed-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .section-label { font-family: var(--font-display); font-weight: 700; font-size: 14px; }
   .tabs { display: flex; gap: 6px; }
   .tab { background: transparent; border: 1px solid var(--line); color: var(--ink-soft); border-radius: 999px; padding: 6px 13px; font-size: 12px; font-family: var(--font-mono); transition: all .15s ease; }
   .tab:hover { border-color: var(--ink-faint); color: var(--ink); }
@@ -97,8 +144,6 @@
   /* ---------- feed / cards ---------- */
   .feed { display: flex; flex-direction: column; gap: 8px; }
   .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); overflow: hidden; }
-  .card-enter { animation: slideIn .4s cubic-bezier(.2,.7,.3,1); }
-  @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
   .card-head { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 12px; padding: 11px 14px; width: 100%; background: transparent; border: none; text-align: left; color: inherit; }
   .card-head:hover { background: var(--surface-2); }
   .pill { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; border-radius: 999px; padding: 3px 9px; white-space: nowrap; }
@@ -124,16 +169,18 @@
   .copy-btn.copied { border-color: var(--allow); color: var(--allow); }
   .args-json { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); background: var(--surface-2); border-radius: 6px; padding: 8px 10px; overflow-x: auto; white-space: pre; }
 
-  /* ---------- empty state ---------- */
-  .empty { text-align: center; padding: 48px 20px; color: var(--ink-faint); background: var(--surface); border: 1px dashed var(--line); border-radius: var(--radius); }
-  .empty-icon { font-size: 30px; margin-bottom: 10px; opacity: .8; }
+  .fade-enter { animation: slideIn .35s cubic-bezier(.2,.7,.3,1); }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+  .empty { text-align: center; padding: 40px 20px; color: var(--ink-faint); background: var(--surface); border: 1px dashed var(--line); border-radius: var(--radius); }
+  .empty-icon { font-size: 28px; margin-bottom: 8px; opacity: .8; }
   .empty-title { font-family: var(--font-display); font-weight: 700; color: var(--ink-soft); margin-bottom: 4px; }
-  .empty-sub { font-size: 12.5px; }
+  .empty-sub { font-size: 12px; }
   .empty-sub code { background: var(--surface-2); border-radius: 4px; padding: 1px 6px; }
 </style>
 </head>
 <body>
-<div class="shell">
+<div class="shell" x-data="wardenApp()" x-cloak>
 
   <header class="topbar">
     <div class="brand">
@@ -143,219 +190,291 @@
         <div class="brand-tag">Live authorization console — T&amp;E fleet</div>
       </div>
     </div>
-    <div style="display:flex; align-items:center; gap:8px;">
-      <div class="live-status"><span class="live-dot" id="liveDot"></span><span id="liveLabel">Connecting…</span></div>
-      <button class="refresh-btn" id="refreshBtn" title="Refresh now">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v6h-6"/></svg>
-        Refresh
+    <div class="topbar-right">
+      <div class="live-status">
+        <span class="live-dot" :class="live ? 'on' : 'off'"></span>
+        <span x-text="liveLabel"></span>
+      </div>
+      <button class="run-btn" :disabled="running" @click="runDemo()">
+        <span x-show="running" class="spinner"></span>
+        <span x-show="!running">▶</span>
+        <span x-text="running ? 'Running…' : 'Run fleet scenario'"></span>
       </button>
     </div>
   </header>
 
-  <section class="pipeline" id="pipeline" aria-label="Decision pipeline">
-    <div class="pipe-node" data-stage="intercept"><span class="pipe-icon">↳</span><span>Intercept</span></div>
-    <div class="pipe-line"></div>
-    <div class="pipe-node" data-stage="guardrail"><span class="pipe-icon">⛔</span><span>Guardrail</span></div>
-    <div class="pipe-line"></div>
-    <div class="pipe-node" data-stage="triage"><span class="pipe-icon">⚡</span><span>Triage</span></div>
-    <div class="pipe-line"></div>
-    <div class="pipe-node" data-stage="review"><span class="pipe-icon">🧭</span><span>Review</span></div>
-    <div class="pipe-line"></div>
-    <div class="pipe-node" data-stage="ledger"><span class="pipe-icon">📒</span><span>Ledger</span></div>
+  <section class="pipeline" aria-label="Decision pipeline">
+    <template x-for="(node, i) in ['intercept','guardrail','triage','review','ledger']" :key="node">
+      <div style="display:contents">
+        <div class="pipe-node" :class="lit[node] ? 'lit' : ''">
+          <span class="pipe-icon" x-text="{intercept:'↳',guardrail:'⛔',triage:'⚡',review:'🧭',ledger:'📒'}[node]"></span>
+          <span x-text="node"></span>
+        </div>
+        <div class="pipe-line" x-show="i < 4"></div>
+      </div>
+    </template>
+  </section>
+
+  <section class="live-grid">
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">🧳 Traveler app <span style="color:var(--ink-faint); font-weight:400;">— what the employee sees</span></div>
+        <div class="panel-sub">Corporate travel booking, from the traveler's side of the screen</div>
+      </div>
+      <div class="trip-card">
+        <span class="trip-route">SFO → SIN</span>
+        <span style="color:var(--ink-faint); font-size:11px;">business trip</span>
+        <span class="trip-fare">$310</span>
+      </div>
+      <div class="panel-body" x-ref="travelerBody">
+        <div class="panel-empty" x-show="travelerSteps.length === 0">
+          Click <b>Run fleet scenario</b> to book this trip with the agent fleet.
+        </div>
+        <template x-for="step in travelerSteps" :key="step.call_id">
+          <div class="t-step fade-enter" :class="step.status">
+            <span class="t-step-icon">
+              <span x-show="step.status === 'active'" class="dot-pulse"></span>
+              <span x-show="step.status === 'allow'">✓</span>
+              <span x-show="step.status === 'block'">✕</span>
+              <span x-show="step.status === 'escalate'">⏸</span>
+            </span>
+            <span class="t-step-text" x-text="step.traveler_copy"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">🧭 Live agent trace <span style="color:var(--ink-faint); font-weight:400;">— what Warden actually does</span></div>
+        <div class="panel-sub">Every stage, every call, as it happens</div>
+      </div>
+      <div class="panel-body" x-ref="traceBody">
+        <div class="panel-empty" x-show="traceOrder.length === 0">
+          No calls in flight. The trace fills in live, stage by stage, once a run starts.
+        </div>
+        <template x-for="id in traceOrder" :key="id">
+          <div class="trace-entry fade-enter">
+            <div class="trace-head">
+              <div>
+                <div class="trace-agent" x-text="trace[id].agent_id"></div>
+                <div class="trace-tool" x-text="arrow(trace[id].tool)"></div>
+              </div>
+              <div class="trace-steps">
+                <template x-for="(s, i) in ['guardrail','triage','review']" :key="s">
+                  <span style="display:contents">
+                    <span class="t-dot" :class="dotClass(trace[id], s)"></span>
+                    <span class="t-dot-line" x-show="i < 2"></span>
+                  </span>
+                </template>
+              </div>
+            </div>
+            <div class="trace-decision" x-show="trace[id].decision">
+              <span class="pill" :class="trace[id].decision" x-text="trace[id].decision"></span>
+              <span style="font-family:var(--font-mono); font-size:10.5px; color:var(--ink-faint);" x-text="trace[id].reviewed_by"></span>
+            </div>
+            <div class="trace-rationale" x-show="trace[id].decision" x-text="trace[id].rationale"></div>
+          </div>
+        </template>
+      </div>
+    </div>
+
   </section>
 
   <section class="stats">
-    <div class="stat-tile"><div class="stat-value" id="statTotal">0</div><div class="stat-label">Calls</div></div>
-    <div class="stat-tile allow"><div class="stat-value" id="statAllow">0</div><div class="stat-label">Allowed</div></div>
-    <div class="stat-tile block"><div class="stat-value" id="statBlock">0</div><div class="stat-label">Blocked</div></div>
-    <div class="stat-tile escalate"><div class="stat-value" id="statEscalate">0</div><div class="stat-label">Escalated</div></div>
+    <div class="stat-tile"><div class="stat-value" x-text="stats.total"></div><div class="stat-label">Calls</div></div>
+    <div class="stat-tile allow"><div class="stat-value" x-text="stats.allow"></div><div class="stat-label">Allowed</div></div>
+    <div class="stat-tile block"><div class="stat-value" x-text="stats.block"></div><div class="stat-label">Blocked</div></div>
+    <div class="stat-tile escalate"><div class="stat-value" x-text="stats.escalate"></div><div class="stat-label">Escalated</div></div>
   </section>
 
   <div class="feed-controls">
-    <div class="tabs" id="tabs">
-      <button class="tab active" data-filter="all">All</button>
-      <button class="tab" data-filter="allow">Allowed</button>
-      <button class="tab" data-filter="block">Blocked</button>
-      <button class="tab" data-filter="escalate">Escalated</button>
+    <div class="section-label">Audit ledger</div>
+    <div class="tabs">
+      <button class="tab" :class="filter === 'all' ? 'active' : ''" @click="filter = 'all'" x-text="'All (' + stats.total + ')'"></button>
+      <button class="tab" :class="filter === 'allow' ? 'active' : ''" @click="filter = 'allow'" x-text="'Allow (' + stats.allow + ')'"></button>
+      <button class="tab" :class="filter === 'block' ? 'active' : ''" @click="filter = 'block'" x-text="'Block (' + stats.block + ')'"></button>
+      <button class="tab" :class="filter === 'escalate' ? 'active' : ''" @click="filter = 'escalate'" x-text="'Escalate (' + stats.escalate + ')'"></button>
     </div>
   </div>
 
-  <div class="feed" id="feed">
-    <div class="empty" id="emptyState">
+  <div class="feed">
+    <div class="empty" x-show="filteredRecords.length === 0">
       <div class="empty-icon">🛰️</div>
       <div class="empty-title">No calls yet</div>
-      <div class="empty-sub">Run <code>python -m demo.run_demo</code> to see the fleet in action.</div>
+      <div class="empty-sub">Run the fleet scenario above, or <code>python -m demo.run_demo</code> from a terminal.</div>
     </div>
+    <template x-for="r in filteredRecords" :key="r.hash">
+      <div class="card" :class="isExpanded(r.hash) ? 'open' : ''">
+        <button class="card-head" @click="toggleExpand(r.hash)">
+          <span class="pill" :class="r.decision" x-text="r.decision"></span>
+          <span class="card-main">
+            <div class="card-agent"><span x-text="r.agent_id"></span> <span class="card-tool" x-text="arrow(r.tool)"></span></div>
+            <div class="card-reviewer" x-text="r.reviewed_by"></div>
+          </span>
+          <span class="card-time" x-text="relTime(r.ts)"></span>
+          <span class="card-chevron">▸</span>
+        </button>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="rationale" x-text="r.rationale"></div>
+            <div class="kv-row"><b>Args</b></div>
+            <div class="args-json" x-text="JSON.stringify(r.args, null, 2)"></div>
+            <div class="kv-row" x-show="r.token">
+              <b>Token</b>
+              <span class="token-chip" x-text="(r.token || '').slice(0, 28) + '…'"></span>
+              <button class="copy-btn" @click.stop="copyToken(r.token, $event)">Copy</button>
+            </div>
+            <div class="kv-row"><b>Hash</b><span class="token-chip" x-text="(r.hash || '').slice(0, 16) + '…'"></span></div>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 
 </div>
 
 <script>
-(function () {
-  const feedEl = document.getElementById('feed');
-  const emptyEl = document.getElementById('emptyState');
-  const liveDot = document.getElementById('liveDot');
-  const liveLabel = document.getElementById('liveLabel');
-  const refreshBtn = document.getElementById('refreshBtn');
-  const tabsEl = document.getElementById('tabs');
+function wardenApp() {
+  return {
+    live: false,
+    liveLabel: 'Connecting…',
+    running: false,
 
-  let records = [];
-  let seen = new Set();
-  let expanded = new Set();
-  let filter = 'all';
-  let firstLoad = true;
-  let lastCount = 0;
+    travelerSteps: [],
+    traceOrder: [],
+    trace: {},
+    lit: { intercept: false, guardrail: false, triage: false, review: false, ledger: false },
 
-  const REVIEWER_STAGE = (reviewedBy) => {
-    if (!reviewedBy) return null;
-    if (reviewedBy === 'hard-limit-guardrail') return 'guardrail';
-    if (reviewedBy === 'gemma-triage') return 'triage';
-    if (reviewedBy.startsWith('ollama-reviewer') || reviewedBy.startsWith('gemini-reviewer') || reviewedBy === 'stub') return 'review';
-    return null;
+    records: [],
+    seenHashes: new Set(),
+    expandedHashes: new Set(),
+    filter: 'all',
+
+    init() {
+      this.loadInitialLedger();
+      this.connectSSE();
+    },
+
+    async loadInitialLedger() {
+      try {
+        const res = await fetch('/v1/log');
+        const data = await res.json();
+        this.records = data;
+        data.forEach((r) => this.seenHashes.add(r.hash));
+      } catch (e) { /* gateway not up yet */ }
+    },
+
+    connectSSE() {
+      const es = new EventSource('/v1/events');
+      es.onopen = () => { this.live = true; this.liveLabel = 'Live'; };
+      es.onerror = () => { this.live = false; this.liveLabel = 'Reconnecting…'; };
+      es.onmessage = (e) => {
+        try { this.handleEvent(JSON.parse(e.data)); } catch (err) { /* skip malformed */ }
+      };
+    },
+
+    handleEvent(evt) {
+      if (evt.type === 'demo_run_started') {
+        this.running = true;
+        this.travelerSteps = [];
+        this.traceOrder = [];
+        this.trace = {};
+        return;
+      }
+      if (evt.type === 'demo_run_finished') { this.running = false; return; }
+
+      const id = evt.call_id;
+      if (!id) return;
+
+      if (!this.trace[id]) {
+        this.trace[id] = { agent_id: evt.agent_id, tool: evt.tool, label: evt.label, stages: {}, decision: null };
+        this.traceOrder.push(id);
+        this.$nextTick(() => this.scrollToBottom(this.$refs.traceBody));
+      }
+      const entry = this.trace[id];
+      if (evt.agent_id) entry.agent_id = evt.agent_id;
+      if (evt.tool) entry.tool = evt.tool;
+      entry.stages[evt.stage] = evt;
+
+      if (['intercept', 'guardrail', 'triage', 'review', 'ledger'].includes(evt.stage)) this.flashPipeline(evt.stage);
+
+      if (evt.stage === 'intercept') {
+        this.travelerSteps.push({ call_id: id, traveler_copy: evt.traveler_copy || (evt.agent_id + ' → ' + evt.tool), status: 'active' });
+        this.$nextTick(() => this.scrollToBottom(this.$refs.travelerBody));
+      }
+
+      if (evt.stage === 'decision') {
+        entry.decision = evt.decision;
+        entry.rationale = evt.rationale;
+        entry.reviewed_by = evt.reviewed_by;
+        const step = this.travelerSteps.find((s) => s.call_id === id);
+        if (step) step.status = evt.decision;
+      }
+
+      if (evt.stage === 'ledger' && evt.record && !this.seenHashes.has(evt.record.hash)) {
+        this.records.push(evt.record);
+        this.seenHashes.add(evt.record.hash);
+      }
+    },
+
+    flashPipeline(stage) {
+      this.lit[stage] = true;
+      setTimeout(() => { this.lit[stage] = false; }, 900);
+    },
+
+    scrollToBottom(el) { if (el) el.scrollTop = el.scrollHeight; },
+    arrow(tool) { return '→ ' + tool; },
+
+    dotClass(entry, stage) {
+      const s = entry.stages[stage];
+      if (!s) return '';
+      if (s.status === 'checking') return 'checking';
+      return 'done';
+    },
+
+    async runDemo() {
+      if (this.running) return;
+      this.running = true;
+      try {
+        const res = await fetch('/v1/demo/run', { method: 'POST' });
+        if (res.status === 409) { /* server already running one; state will resync via SSE */ }
+      } catch (e) { this.running = false; }
+    },
+
+    get stats() {
+      const c = { allow: 0, block: 0, escalate: 0 };
+      this.records.forEach((r) => { if (c[r.decision] !== undefined) c[r.decision]++; });
+      return { total: this.records.length, ...c };
+    },
+    get filteredRecords() {
+      const list = this.filter === 'all' ? this.records : this.records.filter((r) => r.decision === this.filter);
+      return list.slice().reverse();
+    },
+    toggleExpand(hash) {
+      if (this.expandedHashes.has(hash)) this.expandedHashes.delete(hash); else this.expandedHashes.add(hash);
+    },
+    isExpanded(hash) { return this.expandedHashes.has(hash); },
+    relTime(ts) {
+      const diff = Math.max(0, Date.now() / 1000 - ts);
+      if (diff < 5) return 'just now';
+      if (diff < 60) return Math.floor(diff) + 's ago';
+      if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+      return Math.floor(diff / 3600) + 'h ago';
+    },
+    async copyToken(token, ev) {
+      const btn = ev.currentTarget;
+      try {
+        await navigator.clipboard.writeText(token);
+        btn.textContent = 'Copied'; btn.classList.add('copied');
+      } catch (e) {
+        btn.textContent = 'Blocked';
+      }
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1200);
+    },
   };
-
-  function relTime(ts) {
-    const diff = Math.max(0, Date.now() / 1000 - ts);
-    if (diff < 5) return 'just now';
-    if (diff < 60) return Math.floor(diff) + 's ago';
-    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-    return Math.floor(diff / 3600) + 'h ago';
-  }
-
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  }
-
-  function cardHtml(r, isNew) {
-    const isOpen = expanded.has(r.hash);
-    return `
-      <div class="card ${isOpen ? 'open' : ''} ${isNew ? 'card-enter' : ''}" data-hash="${r.hash}">
-        <button class="card-head" data-toggle="${r.hash}">
-          <span class="pill ${r.decision}">${r.decision}</span>
-          <span class="card-main">
-            <div class="card-agent">${escapeHtml(r.agent_id)} <span class="card-tool">→ ${escapeHtml(r.tool)}</span></div>
-            <div class="card-reviewer">${escapeHtml(r.reviewed_by)}</div>
-          </span>
-          <span class="card-time">${relTime(r.ts)}</span>
-          <span class="card-chevron">▸</span>
-        </button>
-        <div class="card-body">
-          <div class="card-body-inner">
-            <div class="rationale">${escapeHtml(r.rationale)}</div>
-            <div class="kv-row"><b>Args</b></div>
-            <div class="args-json">${escapeHtml(JSON.stringify(r.args, null, 2))}</div>
-            ${r.token ? `
-            <div class="kv-row">
-              <b>Token</b>
-              <span class="token-chip">${escapeHtml(r.token.slice(0, 28))}…</span>
-              <button class="copy-btn" data-copy="${escapeHtml(r.token)}">Copy</button>
-            </div>` : ''}
-            <div class="kv-row"><b>Hash</b><span class="token-chip">${escapeHtml((r.hash || '').slice(0, 16))}…</span></div>
-          </div>
-        </div>
-      </div>`;
-  }
-
-  function updateStats() {
-    const c = { allow: 0, block: 0, escalate: 0 };
-    records.forEach((r) => { if (c[r.decision] !== undefined) c[r.decision]++; });
-    document.getElementById('statTotal').textContent = records.length;
-    document.getElementById('statAllow').textContent = c.allow;
-    document.getElementById('statBlock').textContent = c.block;
-    document.getElementById('statEscalate').textContent = c.escalate;
-    tabsEl.querySelectorAll('.tab').forEach((t) => {
-      const f = t.dataset.filter;
-      const label = f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1);
-      const count = f === 'all' ? records.length : c[f] || 0;
-      t.textContent = `${label} (${count})`;
-    });
-  }
-
-  function updatePipeline() {
-    if (records.length === lastCount) return;
-    const grew = records.length > lastCount;
-    lastCount = records.length;
-    if (!grew || !records.length) return;
-    const latest = records[records.length - 1];
-    const stage = REVIEWER_STAGE(latest.reviewed_by);
-    const stages = ['intercept', stage, 'ledger'].filter(Boolean);
-    stages.forEach((s) => {
-      const node = document.querySelector(`.pipe-node[data-stage="${s}"]`);
-      if (!node) return;
-      node.classList.add('lit');
-      setTimeout(() => node.classList.remove('lit'), 1100);
-    });
-  }
-
-  function render() {
-    updateStats();
-    updatePipeline();
-
-    const filtered = filter === 'all' ? records : records.filter((r) => r.decision === filter);
-    if (!filtered.length) {
-      feedEl.innerHTML = '';
-      feedEl.appendChild(emptyEl);
-      return;
-    }
-    const sorted = filtered.slice().reverse();
-    feedEl.innerHTML = sorted.map((r) => cardHtml(r, !seen.has(r.hash))).join('');
-    records.forEach((r) => seen.add(r.hash));
-
-    feedEl.querySelectorAll('[data-toggle]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const hash = btn.dataset.toggle;
-        if (expanded.has(hash)) expanded.delete(hash); else expanded.add(hash);
-        render();
-      });
-    });
-    feedEl.querySelectorAll('[data-copy]').forEach((btn) => {
-      btn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        try {
-          await navigator.clipboard.writeText(btn.dataset.copy);
-          btn.textContent = 'Copied'; btn.classList.add('copied');
-        } catch (err) {
-          // Clipboard permission denied (sandboxed/insecure context) — still
-          // give feedback rather than failing silently.
-          btn.textContent = 'Blocked';
-        }
-        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1200);
-      });
-    });
-  }
-
-  async function poll() {
-    try {
-      const res = await fetch('/v1/log');
-      if (!res.ok) throw new Error('bad status');
-      records = await res.json();
-      liveDot.className = 'live-dot on';
-      liveLabel.textContent = 'Live';
-      firstLoad = false;
-    } catch (e) {
-      liveDot.className = 'live-dot off';
-      liveLabel.textContent = firstLoad ? 'Waiting for gateway…' : 'Reconnecting…';
-      return;
-    }
-    render();
-  }
-
-  tabsEl.addEventListener('click', (e) => {
-    const btn = e.target.closest('.tab');
-    if (!btn) return;
-    filter = btn.dataset.filter;
-    tabsEl.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === btn));
-    render();
-  });
-
-  refreshBtn.addEventListener('click', () => {
-    refreshBtn.classList.add('spin');
-    poll().finally(() => setTimeout(() => refreshBtn.classList.remove('spin'), 400));
-  });
-
-  poll();
-  setInterval(poll, 1800);
-})();
+}
 </script>
 </body>
 </html>
