@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Warden — fleet log</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #14161a; --panel: #1b1e23; --line: #2c2f36; --ink: #ececed;
+    --ink-soft: #a7acb6; --allow: #4fa994; --block: #db6c64; --escalate: #e08a34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: ui-monospace, "IBM Plex Mono", monospace;
+    padding: 24px; font-size: 13px;
+  }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .sub { color: var(--ink-soft); margin: 0 0 20px; }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+  th { color: var(--ink-soft); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+  tr:last-child td { border-bottom: none; }
+  .pill { border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
+  .allow { background: rgba(79,169,148,0.15); color: var(--allow); }
+  .block { background: rgba(219,108,100,0.15); color: var(--block); }
+  .escalate { background: rgba(224,138,52,0.15); color: var(--escalate); }
+  .empty { color: var(--ink-soft); padding: 20px; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>Warden — live fleet log</h1>
+  <p class="sub">Polling /v1/log every 2s. Run <code>python -m demo.run_demo</code> to populate it.</p>
+  <table>
+    <thead>
+      <tr><th>Time</th><th>Agent</th><th>Tool</th><th>Decision</th><th>Reviewed by</th><th>Rationale</th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <p id="empty" class="empty" style="display:none;">No calls logged yet.</p>
+
+<script>
+async function poll() {
+  try {
+    const res = await fetch('/v1/log');
+    const rows = await res.json();
+    const tbody = document.getElementById('rows');
+    const empty = document.getElementById('empty');
+    if (!rows.length) { empty.style.display = 'block'; tbody.innerHTML = ''; return; }
+    empty.style.display = 'none';
+    tbody.innerHTML = rows.slice().reverse().map(r => {
+      const t = new Date(r.ts * 1000).toLocaleTimeString();
+      return `<tr>
+        <td>${t}</td>
+        <td>${r.agent_id}</td>
+        <td>${r.tool}</td>
+        <td><span class="pill ${r.decision}">${r.decision}</span></td>
+        <td>${r.reviewed_by}</td>
+        <td>${r.rationale}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) { /* gateway not up yet — keep trying */ }
+}
+poll();
+setInterval(poll, 2000);
+</script>
+</body>
+</html>

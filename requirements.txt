@@ -1,0 +1,14 @@
+# Pinned: stable, slow-moving.
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.1
+python-dotenv==1.0.1
+httpx==0.28.1
+
+# Unpinned on purpose: these ship fast and this scaffold was written against
+# APIs current as of early 2026 — `pip install -U` these first and skim the
+# changelog if anything in warden/triage.py or warden/reviewer_agent.py breaks.
+google-genai
+google-adk
+google-cloud-firestore
