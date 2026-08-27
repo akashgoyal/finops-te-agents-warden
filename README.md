@@ -104,6 +104,7 @@ chosen to fit Google's Always Free tier:
 | ADK | Open source |
 | Cloud Run | Always Free tier at hackathon-demo traffic, scaled to zero |
 | Firestore | Always Free tier (1GiB, 50k reads / 20k writes per day) |
+| Cloud Build + Artifact Registry | Used automatically by `gcloud run deploy --source=.` to build/store the image — both have free allowances well above what a few redeploys need |
 
 Linking a billing account is required to activate Cloud Run/Firestore even
 on the free tier (a Feb 2026 policy change) — `scripts/setup_gcp.sh` also

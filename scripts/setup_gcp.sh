@@ -11,11 +11,17 @@ echo "==> Using project: $PROJECT_ID"
 gcloud config set project "$PROJECT_ID"
 
 echo "==> Enabling required APIs"
+# No aiplatform.googleapis.com here on purpose — Warden calls the Gemini
+# Developer API (AI Studio key) rather than Vertex AI's hosted endpoint,
+# specifically to stay on the free tier. cloudbuild + artifactregistry are
+# what `gcloud run deploy --source=.` uses under the hood to build and
+# store the image; both have their own free allowances at this scale.
 gcloud services enable \
   run.googleapis.com \
   firestore.googleapis.com \
   secretmanager.googleapis.com \
-  aiplatform.googleapis.com \
+  cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com \
   cloudbilling.googleapis.com
 
 echo "==> Creating Firestore database (Native mode) if it doesn't exist"
