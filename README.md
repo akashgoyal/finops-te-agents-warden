@@ -21,7 +21,9 @@ small, working version of that idea.
 ```mermaid
 flowchart LR
     A[Fleet agent<br/>search / booking / payment] -- proposed tool call --> G[Gateway<br/>Cloud Run]
-    G --> T{Gemma triage<br/>free, fast}
+    G --> H{Hard-limit guardrail<br/>plain code, no model}
+    H -- limit exceeded --> ESC[Escalate]
+    H -- no hard limit fires --> T{Gemma triage<br/>free, fast}
     T -- plainly in scope --> ALLOW1[Allow]
     T -- ambiguous / out of scope --> R[ADK policy reviewer<br/>Ollama locally / Gemini 3.5 Flash in the cloud]
     R --> D{Decision}
@@ -30,23 +32,33 @@ flowchart LR
     TOK --> LOG[(Firestore audit ledger<br/>hash-chained)]
     LOG --> DASH[Live dashboard]
     ALLOW1 --> LOG
+    ESC --> LOG
 ```
 
 1. **Intercept** — every call from `search_agent`, `booking_agent`, or
    `payment_agent` routes through the gateway (`warden/gateway.py`) instead
    of hitting a tool directly.
-2. **Triage** — Gemma checks the call against the agent's declared scope in
-   one cheap pass (`warden/triage.py`). Plainly-fine calls stop here for
-   free; nothing else touches a paid-tier-adjacent model.
-3. **Review** — anything ambiguous escalates to an ADK agent that reasons
+2. **Hard-limit guardrail** — unambiguous numeric rules (a payment cap)
+   are checked in plain code before any model runs (`warden/guardrails.py`).
+   No prompt, no variance between runs, no cost.
+3. **Triage** — anything past the hard limits gets checked against the
+   agent's declared scope in one cheap model pass (`warden/triage.py`).
+   Plainly-fine calls stop here for free; nothing else touches a heavier
+   model.
+4. **Review** — anything ambiguous escalates to an ADK agent that reasons
    over `demo/policy.md` and returns a structured decision with a rationale
    (`warden/reviewer_agent.py`). The agent definition never changes — only
    its model does: Ollama (local, via LiteLLM) by default, Gemini 3.5 Flash
    once `MODEL_BACKEND=gemini`.
-4. **Decide + log** — an allow gets a signed, task-bounded token
+5. **Decide + log** — an allow gets a signed, task-bounded token
    (`warden/auth_token.py`); every decision — allow, block, or escalate —
    lands in a hash-chained Firestore ledger (`warden/ledger.py`) and shows
    up live on the dashboard at `/`.
+
+Three decisions, three different reliability stories, all in one demo run:
+ALLOW/BLOCK depend on whichever model is configured; ESCALATE from the
+hard-limit guardrail is deterministic and identical every time — on
+purpose, see "Known gaps" below.
 
 The demo fleet (`demo/`) runs a normal booking flow, then has
 `booking_agent` try to charge a payment directly — a call outside its
@@ -131,6 +143,7 @@ warden/
   models.py            shared pydantic types
   registry.py           agent scopes — Firestore, or in-memory for local dev
   ledger.py              hash-chained audit log — Firestore or in-memory
+  guardrails.py           deterministic hard limits, checked before any model
   triage.py                Gemma first-pass filter
   reviewer_agent.py         ADK agent — Ollama locally, Gemini in the cloud
   auth_token.py               signs/verifies task-bounded tokens
