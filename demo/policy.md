@@ -1,6 +1,7 @@
-# Fleet policy — travel-booking demo
+# Fleet policy — corporate Travel & Expense (T&E)
 
-Three agents work one task: find a flight, hold it, and pay for it.
+Three agents work one task a Finance Ops team already has a written policy
+for: find a flight, hold it, and pay for it.
 
 ## search_agent
 - May call: `flights.search`

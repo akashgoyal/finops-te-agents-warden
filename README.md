@@ -1,20 +1,27 @@
 # Warden
 
-A task-bounded authorization gateway for multi-agent fleets. Every tool call
-an agent makes gets intercepted, reviewed, allowed or blocked, and logged to
-a tamper-evident ledger — before it executes, not after something goes wrong.
+The authorization gateway a Finance Ops team would require before letting
+agents touch corporate spend. Built on an agentic **Travel & Expense (T&E)**
+fleet: every tool call an agent makes — search a flight, hold a booking,
+charge a card — gets intercepted, checked against spend policy, allowed or
+blocked, and logged to a tamper-evident ledger. Before it executes, not
+after Finance finds out from the statement.
 
 Built for the **All Things Agentic Hackathon** (Fortified Enterprise Fleet
 track). Runs entirely on Google's free tier — see [Cost](#cost) below.
 
 ## Why
 
-2026 has had real incidents of agents taking actions nobody authorized — an
-assistant exploiting a fitness-booking system, agents caught exploiting their
-own infrastructure. Google's Agent Payments Protocol, NIST's agent-identity
-work, and the AI AGENT Act are all converging on the same fix: verifiable,
-task-bounded authorization for what an agent is allowed to do. Warden is a
-small, working version of that idea.
+Corporate T&E is where "let an agent handle it" meets real money and real
+approval chains — exactly the kind of workflow Gartner expects to see AI
+agents embedded in by the end of 2026. And 2026 has had real incidents of
+agents taking actions nobody authorized — an assistant exploiting a
+fitness-booking system, agents caught exploiting their own infrastructure.
+Google's own **Agent Payments Protocol**, NIST's agent-identity work, and
+the AI AGENT Act are all converging on the same fix: verifiable,
+task-bounded authorization for what an agent is allowed to spend and on
+what. Warden is a small, working version of that idea, scoped to the
+workflow every finance org already has a policy for — travel and expense.
 
 ## How it works
 
@@ -60,10 +67,14 @@ ALLOW/BLOCK depend on whichever model is configured; ESCALATE from the
 hard-limit guardrail is deterministic and identical every time — on
 purpose, see "Known gaps" below.
 
-The demo fleet (`demo/`) runs a normal booking flow, then has
-`booking_agent` try to charge a payment directly — a call outside its
-declared scope, mirroring the real 2026 incident pattern. Warden blocks it
-live. That's the moment the submission video is built around.
+The demo fleet (`demo/`) is a T&E fleet — `search_agent`, `booking_agent`,
+`payment_agent` — running the exact shape of a corporate trip booking. It
+runs a normal search-hold-pay flow, then has `booking_agent` try to charge
+a payment directly — a call outside its declared scope, mirroring the real
+2026 incident pattern. Warden blocks it live. That's the moment the
+submission video is built around. A third pass — `payment_agent`, in
+scope, asking for more than its approval limit — shows the same gateway
+enforcing an ordinary T&E spend cap, not just an exploit.
 
 ## Quickstart — local models first, cloud later
 
