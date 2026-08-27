@@ -2,67 +2,360 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Warden — fleet log</title>
+<title>Warden — Fleet Console</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%A1%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+  /* Dark, mission-control look, committed on purpose — this is a live ops
+     console, not a document, and it needs to read at a glance on camera. */
   :root {
-    --bg: #14161a; --panel: #1b1e23; --line: #2c2f36; --ink: #ececed;
-    --ink-soft: #a7acb6; --allow: #4fa994; --block: #db6c64; --escalate: #e08a34;
+    --bg: #14161a;
+    --surface: #1b1e23;
+    --surface-2: #20232a;
+    --line: #2c2f36;
+    --line-soft: #23262c;
+    --ink: #ececed;
+    --ink-soft: #a7acb6;
+    --ink-faint: #6c7178;
+    --accent: #e08a34;
+    --accent-ink: #14161a;
+    --accent-tint: rgba(224, 138, 52, 0.14);
+    --allow: #4fa994;
+    --allow-tint: rgba(79, 169, 148, 0.14);
+    --block: #db6c64;
+    --block-tint: rgba(219, 108, 100, 0.14);
+    --escalate: #9c85f0;
+    --escalate-tint: rgba(156, 133, 240, 0.16);
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 16px 40px -20px rgba(0,0,0,.65);
+    --radius: 12px;
+    --font-display: "Archivo", "Arial Narrow", sans-serif;
+    --font-body: "Work Sans", "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   }
   * { box-sizing: border-box; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
   body {
     margin: 0; background: var(--bg); color: var(--ink);
-    font-family: ui-monospace, "IBM Plex Mono", monospace;
-    padding: 24px; font-size: 13px;
+    font-family: var(--font-body); font-size: 14px; line-height: 1.5;
   }
-  h1 { font-size: 16px; margin: 0 0 4px; }
-  .sub { color: var(--ink-soft); margin: 0 0 20px; }
-  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); }
-  th { color: var(--ink-soft); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
-  tr:last-child td { border-bottom: none; }
-  .pill { border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
-  .allow { background: rgba(79,169,148,0.15); color: var(--allow); }
-  .block { background: rgba(219,108,100,0.15); color: var(--block); }
-  .escalate { background: rgba(224,138,52,0.15); color: var(--escalate); }
-  .empty { color: var(--ink-soft); padding: 20px; text-align: center; }
+  .shell { max-width: 1080px; margin: 0 auto; padding: 22px 24px 60px; }
+  button { font-family: inherit; cursor: pointer; }
+  code { font-family: var(--font-mono); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- top bar ---------- */
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-mark { font-size: 26px; line-height: 1; }
+  .brand-name { font-family: var(--font-display); font-weight: 800; font-size: 19px; letter-spacing: -0.01em; }
+  .brand-tag { font-size: 12px; color: var(--ink-faint); }
+  .live-status { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-soft); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px 6px 10px; }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-faint); flex: none; }
+  .live-dot.on { background: var(--allow); animation: pulse 1.8s infinite; }
+  .live-dot.off { background: var(--block); }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(79,169,148,.45); } 70% { box-shadow: 0 0 0 6px rgba(79,169,148,0); } 100% { box-shadow: 0 0 0 0 rgba(79,169,148,0); } }
+  .refresh-btn { display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--line); color: var(--ink-soft); border-radius: 8px; padding: 7px 10px; font-size: 12px; }
+  .refresh-btn:hover { border-color: var(--accent); color: var(--ink); }
+  .refresh-btn.spin svg { animation: spin .6s linear; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- pipeline ---------- */
+  .pipeline { display: flex; align-items: center; gap: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 18px; overflow-x: auto; box-shadow: var(--shadow); }
+  .pipe-node { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: none; width: 92px; padding: 6px 4px; border-radius: 10px; transition: background .25s ease, transform .25s ease; }
+  .pipe-icon { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; background: var(--surface-2); border: 1px solid var(--line); transition: all .3s ease; }
+  .pipe-node span:last-child { font-family: var(--font-mono); font-size: 10px; letter-spacing: .03em; text-transform: uppercase; color: var(--ink-faint); }
+  .pipe-line { flex: 1; min-width: 20px; height: 1px; background: var(--line); }
+  .pipe-node.lit { background: var(--accent-tint); transform: translateY(-1px); }
+  .pipe-node.lit .pipe-icon { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); box-shadow: 0 0 0 4px var(--accent-tint); }
+  .pipe-node.lit span:last-child { color: var(--ink); }
+
+  /* ---------- stats ---------- */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .stat-tile { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 10px; padding: 12px 16px; box-shadow: var(--shadow); }
+  .stat-tile.allow { border-left-color: var(--allow); }
+  .stat-tile.block { border-left-color: var(--block); }
+  .stat-tile.escalate { border-left-color: var(--escalate); }
+  .stat-value { font-family: var(--font-mono); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; margin-bottom: 4px; }
+  .stat-tile.allow .stat-value { color: var(--allow); }
+  .stat-tile.block .stat-value { color: var(--block); }
+  .stat-tile.escalate .stat-value { color: var(--escalate); }
+  .stat-label { font-size: 11px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .05em; }
+  @media (max-width: 640px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+
+  /* ---------- feed controls ---------- */
+  .feed-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 6px; }
+  .tab { background: transparent; border: 1px solid var(--line); color: var(--ink-soft); border-radius: 999px; padding: 6px 13px; font-size: 12px; font-family: var(--font-mono); transition: all .15s ease; }
+  .tab:hover { border-color: var(--ink-faint); color: var(--ink); }
+  .tab.active { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 600; }
+
+  /* ---------- feed / cards ---------- */
+  .feed { display: flex; flex-direction: column; gap: 8px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); overflow: hidden; }
+  .card-enter { animation: slideIn .4s cubic-bezier(.2,.7,.3,1); }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  .card-head { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 12px; padding: 11px 14px; width: 100%; background: transparent; border: none; text-align: left; color: inherit; }
+  .card-head:hover { background: var(--surface-2); }
+  .pill { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; border-radius: 999px; padding: 3px 9px; white-space: nowrap; }
+  .pill.allow { background: var(--allow-tint); color: var(--allow); }
+  .pill.block { background: var(--block-tint); color: var(--block); }
+  .pill.escalate { background: var(--escalate-tint); color: var(--escalate); }
+  .card-main { min-width: 0; }
+  .card-agent { font-weight: 600; font-size: 13.5px; }
+  .card-tool { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-faint); }
+  .card-reviewer { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-faint); white-space: nowrap; }
+  .card-time { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
+  .card-chevron { color: var(--ink-faint); font-size: 11px; transition: transform .2s ease; flex: none; }
+  .card.open .card-chevron { transform: rotate(90deg); }
+  .card-body { max-height: 0; overflow: hidden; transition: max-height .25s ease; border-top: 1px solid transparent; }
+  .card.open .card-body { max-height: 220px; border-top-color: var(--line-soft); }
+  .card-body-inner { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .rationale { font-size: 13px; color: var(--ink-soft); line-height: 1.5; }
+  .kv-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 11.5px; }
+  .kv-row b { color: var(--ink-faint); font-weight: 500; font-family: var(--font-mono); text-transform: uppercase; font-size: 10px; letter-spacing: .04em; }
+  .token-chip { font-family: var(--font-mono); font-size: 11px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; color: var(--ink-soft); }
+  .copy-btn { background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-soft); border-radius: 6px; padding: 3px 9px; font-size: 11px; font-family: var(--font-mono); }
+  .copy-btn:hover { border-color: var(--accent); color: var(--ink); }
+  .copy-btn.copied { border-color: var(--allow); color: var(--allow); }
+  .args-json { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); background: var(--surface-2); border-radius: 6px; padding: 8px 10px; overflow-x: auto; white-space: pre; }
+
+  /* ---------- empty state ---------- */
+  .empty { text-align: center; padding: 48px 20px; color: var(--ink-faint); background: var(--surface); border: 1px dashed var(--line); border-radius: var(--radius); }
+  .empty-icon { font-size: 30px; margin-bottom: 10px; opacity: .8; }
+  .empty-title { font-family: var(--font-display); font-weight: 700; color: var(--ink-soft); margin-bottom: 4px; }
+  .empty-sub { font-size: 12.5px; }
+  .empty-sub code { background: var(--surface-2); border-radius: 4px; padding: 1px 6px; }
 </style>
 </head>
 <body>
-  <h1>Warden — live fleet log</h1>
-  <p class="sub">Polling /v1/log every 2s. Run <code>python -m demo.run_demo</code> to populate it.</p>
-  <table>
-    <thead>
-      <tr><th>Time</th><th>Agent</th><th>Tool</th><th>Decision</th><th>Reviewed by</th><th>Rationale</th></tr>
-    </thead>
-    <tbody id="rows"></tbody>
-  </table>
-  <p id="empty" class="empty" style="display:none;">No calls logged yet.</p>
+<div class="shell">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">🛡️</span>
+      <div>
+        <div class="brand-name">Warden</div>
+        <div class="brand-tag">Live authorization console — T&amp;E fleet</div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <div class="live-status"><span class="live-dot" id="liveDot"></span><span id="liveLabel">Connecting…</span></div>
+      <button class="refresh-btn" id="refreshBtn" title="Refresh now">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v6h-6"/></svg>
+        Refresh
+      </button>
+    </div>
+  </header>
+
+  <section class="pipeline" id="pipeline" aria-label="Decision pipeline">
+    <div class="pipe-node" data-stage="intercept"><span class="pipe-icon">↳</span><span>Intercept</span></div>
+    <div class="pipe-line"></div>
+    <div class="pipe-node" data-stage="guardrail"><span class="pipe-icon">⛔</span><span>Guardrail</span></div>
+    <div class="pipe-line"></div>
+    <div class="pipe-node" data-stage="triage"><span class="pipe-icon">⚡</span><span>Triage</span></div>
+    <div class="pipe-line"></div>
+    <div class="pipe-node" data-stage="review"><span class="pipe-icon">🧭</span><span>Review</span></div>
+    <div class="pipe-line"></div>
+    <div class="pipe-node" data-stage="ledger"><span class="pipe-icon">📒</span><span>Ledger</span></div>
+  </section>
+
+  <section class="stats">
+    <div class="stat-tile"><div class="stat-value" id="statTotal">0</div><div class="stat-label">Calls</div></div>
+    <div class="stat-tile allow"><div class="stat-value" id="statAllow">0</div><div class="stat-label">Allowed</div></div>
+    <div class="stat-tile block"><div class="stat-value" id="statBlock">0</div><div class="stat-label">Blocked</div></div>
+    <div class="stat-tile escalate"><div class="stat-value" id="statEscalate">0</div><div class="stat-label">Escalated</div></div>
+  </section>
+
+  <div class="feed-controls">
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-filter="all">All</button>
+      <button class="tab" data-filter="allow">Allowed</button>
+      <button class="tab" data-filter="block">Blocked</button>
+      <button class="tab" data-filter="escalate">Escalated</button>
+    </div>
+  </div>
+
+  <div class="feed" id="feed">
+    <div class="empty" id="emptyState">
+      <div class="empty-icon">🛰️</div>
+      <div class="empty-title">No calls yet</div>
+      <div class="empty-sub">Run <code>python -m demo.run_demo</code> to see the fleet in action.</div>
+    </div>
+  </div>
+
+</div>
 
 <script>
-async function poll() {
-  try {
-    const res = await fetch('/v1/log');
-    const rows = await res.json();
-    const tbody = document.getElementById('rows');
-    const empty = document.getElementById('empty');
-    if (!rows.length) { empty.style.display = 'block'; tbody.innerHTML = ''; return; }
-    empty.style.display = 'none';
-    tbody.innerHTML = rows.slice().reverse().map(r => {
-      const t = new Date(r.ts * 1000).toLocaleTimeString();
-      return `<tr>
-        <td>${t}</td>
-        <td>${r.agent_id}</td>
-        <td>${r.tool}</td>
-        <td><span class="pill ${r.decision}">${r.decision}</span></td>
-        <td>${r.reviewed_by}</td>
-        <td>${r.rationale}</td>
-      </tr>`;
-    }).join('');
-  } catch (e) { /* gateway not up yet — keep trying */ }
-}
-poll();
-setInterval(poll, 2000);
+(function () {
+  const feedEl = document.getElementById('feed');
+  const emptyEl = document.getElementById('emptyState');
+  const liveDot = document.getElementById('liveDot');
+  const liveLabel = document.getElementById('liveLabel');
+  const refreshBtn = document.getElementById('refreshBtn');
+  const tabsEl = document.getElementById('tabs');
+
+  let records = [];
+  let seen = new Set();
+  let expanded = new Set();
+  let filter = 'all';
+  let firstLoad = true;
+  let lastCount = 0;
+
+  const REVIEWER_STAGE = (reviewedBy) => {
+    if (!reviewedBy) return null;
+    if (reviewedBy === 'hard-limit-guardrail') return 'guardrail';
+    if (reviewedBy === 'gemma-triage') return 'triage';
+    if (reviewedBy.startsWith('ollama-reviewer') || reviewedBy.startsWith('gemini-reviewer') || reviewedBy === 'stub') return 'review';
+    return null;
+  };
+
+  function relTime(ts) {
+    const diff = Math.max(0, Date.now() / 1000 - ts);
+    if (diff < 5) return 'just now';
+    if (diff < 60) return Math.floor(diff) + 's ago';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    return Math.floor(diff / 3600) + 'h ago';
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function cardHtml(r, isNew) {
+    const isOpen = expanded.has(r.hash);
+    return `
+      <div class="card ${isOpen ? 'open' : ''} ${isNew ? 'card-enter' : ''}" data-hash="${r.hash}">
+        <button class="card-head" data-toggle="${r.hash}">
+          <span class="pill ${r.decision}">${r.decision}</span>
+          <span class="card-main">
+            <div class="card-agent">${escapeHtml(r.agent_id)} <span class="card-tool">→ ${escapeHtml(r.tool)}</span></div>
+            <div class="card-reviewer">${escapeHtml(r.reviewed_by)}</div>
+          </span>
+          <span class="card-time">${relTime(r.ts)}</span>
+          <span class="card-chevron">▸</span>
+        </button>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="rationale">${escapeHtml(r.rationale)}</div>
+            <div class="kv-row"><b>Args</b></div>
+            <div class="args-json">${escapeHtml(JSON.stringify(r.args, null, 2))}</div>
+            ${r.token ? `
+            <div class="kv-row">
+              <b>Token</b>
+              <span class="token-chip">${escapeHtml(r.token.slice(0, 28))}…</span>
+              <button class="copy-btn" data-copy="${escapeHtml(r.token)}">Copy</button>
+            </div>` : ''}
+            <div class="kv-row"><b>Hash</b><span class="token-chip">${escapeHtml((r.hash || '').slice(0, 16))}…</span></div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function updateStats() {
+    const c = { allow: 0, block: 0, escalate: 0 };
+    records.forEach((r) => { if (c[r.decision] !== undefined) c[r.decision]++; });
+    document.getElementById('statTotal').textContent = records.length;
+    document.getElementById('statAllow').textContent = c.allow;
+    document.getElementById('statBlock').textContent = c.block;
+    document.getElementById('statEscalate').textContent = c.escalate;
+    tabsEl.querySelectorAll('.tab').forEach((t) => {
+      const f = t.dataset.filter;
+      const label = f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1);
+      const count = f === 'all' ? records.length : c[f] || 0;
+      t.textContent = `${label} (${count})`;
+    });
+  }
+
+  function updatePipeline() {
+    if (records.length === lastCount) return;
+    const grew = records.length > lastCount;
+    lastCount = records.length;
+    if (!grew || !records.length) return;
+    const latest = records[records.length - 1];
+    const stage = REVIEWER_STAGE(latest.reviewed_by);
+    const stages = ['intercept', stage, 'ledger'].filter(Boolean);
+    stages.forEach((s) => {
+      const node = document.querySelector(`.pipe-node[data-stage="${s}"]`);
+      if (!node) return;
+      node.classList.add('lit');
+      setTimeout(() => node.classList.remove('lit'), 1100);
+    });
+  }
+
+  function render() {
+    updateStats();
+    updatePipeline();
+
+    const filtered = filter === 'all' ? records : records.filter((r) => r.decision === filter);
+    if (!filtered.length) {
+      feedEl.innerHTML = '';
+      feedEl.appendChild(emptyEl);
+      return;
+    }
+    const sorted = filtered.slice().reverse();
+    feedEl.innerHTML = sorted.map((r) => cardHtml(r, !seen.has(r.hash))).join('');
+    records.forEach((r) => seen.add(r.hash));
+
+    feedEl.querySelectorAll('[data-toggle]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const hash = btn.dataset.toggle;
+        if (expanded.has(hash)) expanded.delete(hash); else expanded.add(hash);
+        render();
+      });
+    });
+    feedEl.querySelectorAll('[data-copy]').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+          await navigator.clipboard.writeText(btn.dataset.copy);
+          btn.textContent = 'Copied'; btn.classList.add('copied');
+        } catch (err) {
+          // Clipboard permission denied (sandboxed/insecure context) — still
+          // give feedback rather than failing silently.
+          btn.textContent = 'Blocked';
+        }
+        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1200);
+      });
+    });
+  }
+
+  async function poll() {
+    try {
+      const res = await fetch('/v1/log');
+      if (!res.ok) throw new Error('bad status');
+      records = await res.json();
+      liveDot.className = 'live-dot on';
+      liveLabel.textContent = 'Live';
+      firstLoad = false;
+    } catch (e) {
+      liveDot.className = 'live-dot off';
+      liveLabel.textContent = firstLoad ? 'Waiting for gateway…' : 'Reconnecting…';
+      return;
+    }
+    render();
+  }
+
+  tabsEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.tab');
+    if (!btn) return;
+    filter = btn.dataset.filter;
+    tabsEl.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === btn));
+    render();
+  });
+
+  refreshBtn.addEventListener('click', () => {
+    refreshBtn.classList.add('spin');
+    poll().finally(() => setTimeout(() => refreshBtn.classList.remove('spin'), 400));
+  });
+
+  poll();
+  setInterval(poll, 1800);
+})();
 </script>
 </body>
 </html>
