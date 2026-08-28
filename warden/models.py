@@ -72,6 +72,7 @@ class TransactionStep(BaseModel):
     decision: Decision | None = None
     rationale: str = ""
     reviewed_by: str = ""
+    token: str | None = None
 
     # kind == "orchestrator" (agent_id/tool above hold the blocked call's)
     action: str | None = None

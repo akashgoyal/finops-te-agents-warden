@@ -55,7 +55,7 @@ def run_trip(preset_id: str) -> Transaction:
             agent_id=step["agent_id"], tool=step["tool"],
             decision=Decision(result["decision"]),
             rationale=result["rationale"], reviewed_by=result["reviewed_by"],
-            ts=time.time(),
+            token=result.get("token"), ts=time.time(),
         ))
 
         if result["decision"] == "allow":
@@ -106,7 +106,7 @@ def run_trip(preset_id: str) -> Transaction:
             agent_id=recovery["target_agent"], tool=step["tool"],
             decision=Decision(retry_result["decision"]),
             rationale=retry_result["rationale"], reviewed_by=retry_result["reviewed_by"],
-            ts=time.time(),
+            token=retry_result.get("token"), ts=time.time(),
         ))
         i += 1
         time.sleep(_STEP_PACING_SECONDS)

@@ -180,18 +180,25 @@
   .orch-target { font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); }
 
   /* ---------- transactions table ---------- */
-  .table-scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 20px; }
-  .txn-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 640px; }
-  .txn-table th { text-align: left; font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-faint); font-weight: 500; padding: 10px 14px; border-bottom: 1px solid var(--line); }
-  .txn-table td { padding: 10px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
-  .txn-table tr:last-child td { border-bottom: none; }
-  .txn-row { cursor: pointer; transition: background .12s ease; }
-  .txn-row:hover { background: var(--surface-2); }
-  .txn-row.selected { background: var(--accent-tint); }
-  .txn-row.selected td { position: relative; }
-  .txn-row.selected td:first-child::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent); }
-  .txn-input { font-weight: 600; }
-  .txn-time { font-family: var(--font-mono); color: var(--ink-faint); white-space: nowrap; }
+  /* merged Transactions + agent detail: a card per trip, the agent-level
+     detail (what the old separate Audit Ledger listed as one card per
+     call) reveals on hover instead of living as its own long list. */
+  .txn-cards { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+  .txn-card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 13px 15px; cursor: pointer; transition: border-color .15s ease; }
+  .txn-card:hover { border-color: var(--accent); }
+  .txn-card.selected { border-color: var(--accent); background: var(--accent-tint); }
+  .txn-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+  .txn-card-label { font-weight: 600; font-size: 13.5px; }
+  .txn-card-meta { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); margin-bottom: 8px; }
+  .txn-card-details { max-height: 0; overflow: hidden; opacity: 0; transition: max-height .25s ease, opacity .2s ease, margin-top .25s ease; }
+  .txn-card:hover .txn-card-details { max-height: 360px; overflow-y: auto; opacity: 1; margin-top: 12px; }
+  .txn-step { padding: 8px 0; border-top: 1px solid var(--line-soft); font-size: 12px; }
+  .txn-step:first-child { border-top: none; }
+  .txn-step.orchestrator { background: var(--escalate-tint); border-radius: 6px; padding: 8px 8px; border-top: none; margin: 2px 0; }
+  .txn-step-top { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .txn-step-tool { font-family: var(--font-mono); color: var(--ink-faint); }
+  .txn-step-reviewer { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-faint); margin-left: auto; }
+  .txn-step-rationale { font-size: 11.5px; color: var(--ink-faint); margin-top: 3px; line-height: 1.4; }
   .agent-order { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
   .agent-chip { font-family: var(--font-mono); font-size: 10.5px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; color: var(--ink-soft); }
   .agent-arrow { color: var(--ink-faint); font-size: 10px; }
@@ -221,33 +228,16 @@
   .tab:hover { border-color: var(--ink-faint); color: var(--ink); }
   .tab.active { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 600; }
 
-  /* ---------- feed / cards ---------- */
-  .feed { display: flex; flex-direction: column; gap: 8px; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); overflow: hidden; }
-  .card-head { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 12px; padding: 11px 14px; width: 100%; background: transparent; border: none; text-align: left; color: inherit; }
-  .card-head:hover { background: var(--surface-2); }
+  /* ---------- shared: pills, token chips ---------- */
   .pill { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; border-radius: 999px; padding: 3px 9px; white-space: nowrap; }
   .pill.allow { background: var(--allow-tint); color: var(--allow); }
   .pill.block { background: var(--block-tint); color: var(--block); }
   .pill.escalate { background: var(--escalate-tint); color: var(--escalate); }
-  .card-main { min-width: 0; }
-  .card-agent { font-weight: 600; font-size: 13.5px; }
-  .card-tool { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-faint); }
-  .card-reviewer { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-faint); white-space: nowrap; }
-  .card-time { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
-  .card-chevron { color: var(--ink-faint); font-size: 11px; transition: transform .2s ease; flex: none; }
-  .card.open .card-chevron { transform: rotate(90deg); }
-  .card-body { max-height: 0; overflow: hidden; transition: max-height .25s ease; border-top: 1px solid transparent; }
-  .card.open .card-body { max-height: 220px; border-top-color: var(--line-soft); }
-  .card-body-inner { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
-  .rationale { font-size: 13px; color: var(--ink-soft); line-height: 1.5; }
-  .kv-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 11.5px; }
-  .kv-row b { color: var(--ink-faint); font-weight: 500; font-family: var(--font-mono); text-transform: uppercase; font-size: 10px; letter-spacing: .04em; }
+  .kv-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 11.5px; margin-top: 4px; }
   .token-chip { font-family: var(--font-mono); font-size: 11px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; color: var(--ink-soft); }
   .copy-btn { background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-soft); border-radius: 6px; padding: 3px 9px; font-size: 11px; font-family: var(--font-mono); }
   .copy-btn:hover { border-color: var(--accent); color: var(--ink); }
   .copy-btn.copied { border-color: var(--allow); color: var(--allow); }
-  .args-json { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); background: var(--surface-2); border-radius: 6px; padding: 8px 10px; overflow-x: auto; white-space: pre; }
 
   .fade-enter { animation: slideIn .35s cubic-bezier(.2,.7,.3,1); }
   @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
@@ -398,83 +388,73 @@
           </section>
 
           <div class="feed-controls">
-            <div class="section-label">Transactions <span style="color:var(--ink-faint); font-weight:400;">— one row per trip run</span></div>
-          </div>
-          <div class="table-scroll">
-            <table class="txn-table">
-              <thead>
-                <tr><th>Trip</th><th>Start</th><th>Agent order</th><th>Finish</th><th>Duration</th><th>Status</th></tr>
-              </thead>
-              <tbody>
-                <template x-if="transactionsSorted.length === 0">
-                  <tr><td colspan="6" style="text-align:center; color:var(--ink-faint); padding:22px;">No transactions yet — click a trip pill on the left.</td></tr>
-                </template>
-                <template x-for="t in transactionsSorted" :key="t.transaction_id">
-                  <tr
-                    class="txn-row"
-                    :class="selectedTransactionId === t.transaction_id ? 'selected' : ''"
-                    @click="viewTransaction(t)">
-                    <td class="txn-input" x-text="t.input.label"></td>
-                    <td class="txn-time" x-text="fmtTime(t.start_ts)"></td>
-                    <td>
-                      <div class="agent-order">
-                        <template x-for="(a, i) in t.steps.map(s => s.agent_id)" :key="i">
-                          <span style="display:contents">
-                            <span class="agent-chip" x-text="shortAgent(a)"></span>
-                            <span class="agent-arrow" x-show="i < t.steps.length - 1">→</span>
-                          </span>
-                        </template>
-                      </div>
-                    </td>
-                    <td class="txn-time" x-text="t.finish_ts ? fmtTime(t.finish_ts) : '—'"></td>
-                    <td class="txn-time" x-text="t.finish_ts ? fmtDuration(t.finish_ts - t.start_ts) : '—'"></td>
-                    <td><span class="pill" :class="t.status === 'running' ? 'running-status' : t.status" x-text="t.status"></span></td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="feed-controls">
-            <div class="section-label">Audit ledger</div>
+            <div class="section-label">Transactions <span style="color:var(--ink-faint); font-weight:400;">— hover a card for the agent-by-agent detail</span></div>
             <div class="tabs">
-              <button class="tab" :class="filter === 'all' ? 'active' : ''" @click="filter = 'all'" x-text="'All (' + stats.total + ')'"></button>
-              <button class="tab" :class="filter === 'allow' ? 'active' : ''" @click="filter = 'allow'" x-text="'Allow (' + stats.allow + ')'"></button>
-              <button class="tab" :class="filter === 'block' ? 'active' : ''" @click="filter = 'block'" x-text="'Block (' + stats.block + ')'"></button>
-              <button class="tab" :class="filter === 'escalate' ? 'active' : ''" @click="filter = 'escalate'" x-text="'Escalate (' + stats.escalate + ')'"></button>
+              <button class="tab" :class="txnFilter === 'all' ? 'active' : ''" @click="txnFilter = 'all'" x-text="'All (' + txnStats.total + ')'"></button>
+              <button class="tab" :class="txnFilter === 'completed' ? 'active' : ''" @click="txnFilter = 'completed'" x-text="'Completed (' + txnStats.completed + ')'"></button>
+              <button class="tab" :class="txnFilter === 'aborted' ? 'active' : ''" @click="txnFilter = 'aborted'" x-text="'Aborted (' + txnStats.aborted + ')'"></button>
+              <button class="tab" :class="txnFilter === 'paused_escalated' ? 'active' : ''" @click="txnFilter = 'paused_escalated'" x-text="'Escalated (' + txnStats.paused_escalated + ')'"></button>
             </div>
           </div>
 
-          <div class="feed">
-            <div class="empty" x-show="filteredRecords.length === 0">
+          <div class="txn-cards">
+            <div class="empty" x-show="filteredTransactions.length === 0">
               <div class="empty-icon">🛰️</div>
-              <div class="empty-title">No calls yet</div>
+              <div class="empty-title">No transactions yet</div>
               <div class="empty-sub">Click a trip pill on the left, or <code>python -m demo.run_demo</code> from a terminal.</div>
             </div>
-            <template x-for="r in filteredRecords" :key="r.hash">
-              <div class="card" :class="isExpanded(r.hash) ? 'open' : ''">
-                <button class="card-head" @click="toggleExpand(r.hash)">
-                  <span class="pill" :class="r.decision" x-text="r.decision"></span>
-                  <span class="card-main">
-                    <div class="card-agent"><span x-text="r.agent_id"></span> <span class="card-tool" x-text="arrow(r.tool)"></span></div>
-                    <div class="card-reviewer" x-text="r.reviewed_by"></div>
-                  </span>
-                  <span class="card-time" x-text="relTime(r.ts)"></span>
-                  <span class="card-chevron">▸</span>
-                </button>
-                <div class="card-body">
-                  <div class="card-body-inner">
-                    <div class="rationale" x-text="r.rationale"></div>
-                    <div class="kv-row"><b>Args</b></div>
-                    <div class="args-json" x-text="JSON.stringify(r.args, null, 2)"></div>
-                    <div class="kv-row" x-show="r.token">
-                      <b>Token</b>
-                      <span class="token-chip" x-text="(r.token || '').slice(0, 28) + '…'"></span>
-                      <button class="copy-btn" @click.stop="copyToken(r.token, $event)">Copy</button>
-                    </div>
-                    <div class="kv-row"><b>Hash</b><span class="token-chip" x-text="(r.hash || '').slice(0, 16) + '…'"></span></div>
-                  </div>
+            <template x-for="t in filteredTransactions" :key="t.transaction_id">
+              <div class="txn-card" :class="selectedTransactionId === t.transaction_id ? 'selected' : ''" @click="viewTransaction(t)">
+
+                <div class="txn-card-top">
+                  <span class="txn-card-label" x-text="t.input.label"></span>
+                  <span class="pill" :class="t.status === 'running' ? 'running-status' : t.status" x-text="t.status"></span>
                 </div>
+                <div class="txn-card-meta">
+                  <span x-text="fmtTime(t.start_ts)"></span>
+                  <template x-if="t.finish_ts">
+                    <span>→ <span x-text="fmtTime(t.finish_ts)"></span> · <span x-text="fmtDuration(t.finish_ts - t.start_ts)"></span></span>
+                  </template>
+                </div>
+                <div class="agent-order">
+                  <template x-for="(a, i) in t.steps.filter(s => s.kind !== 'orchestrator').map(s => s.agent_id)" :key="i">
+                    <span style="display:contents">
+                      <span class="agent-chip" x-text="shortAgent(a)"></span>
+                      <span class="agent-arrow" x-show="i < t.steps.filter(s => s.kind !== 'orchestrator').length - 1">→</span>
+                    </span>
+                  </template>
+                </div>
+
+                <div class="txn-card-details" @click.stop>
+                  <template x-for="(s, i) in t.steps" :key="i">
+                    <div class="txn-step" :class="s.kind === 'orchestrator' ? 'orchestrator' : ''">
+                      <template x-if="s.kind === 'orchestrator'">
+                        <div>
+                          <div class="txn-step-top">🧠 <span class="orch-action" x-text="s.action"></span>
+                            <span class="txn-step-reviewer" x-show="s.target_agent" x-text="'→ ' + s.target_agent"></span>
+                          </div>
+                          <div class="txn-step-rationale" x-text="s.rationale"></div>
+                        </div>
+                      </template>
+                      <template x-if="s.kind !== 'orchestrator'">
+                        <div>
+                          <div class="txn-step-top">
+                            <span class="pill" :class="s.decision" x-text="s.decision"></span>
+                            <span x-text="s.agent_id"></span>
+                            <span class="txn-step-tool" x-text="arrow(s.tool)"></span>
+                            <span class="txn-step-reviewer" x-text="s.reviewed_by"></span>
+                          </div>
+                          <div class="txn-step-rationale" x-text="s.rationale"></div>
+                          <div class="kv-row" x-show="s.token">
+                            <span class="token-chip" x-text="(s.token || '').slice(0, 24) + '…'"></span>
+                            <button class="copy-btn" @click.stop="copyToken(s.token, $event)">Copy</button>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+
               </div>
             </template>
           </div>
@@ -504,11 +484,10 @@ function wardenApp() {
 
     transactions: [],
     selectedTransactionId: null,
+    txnFilter: 'all',
 
     records: [],
     seenHashes: new Set(),
-    expandedHashes: new Set(),
-    filter: 'all',
 
     init() {
       this.loadTrips();
@@ -706,20 +685,21 @@ function wardenApp() {
     get transactionsSorted() {
       return this.transactions.slice().sort((a, b) => b.start_ts - a.start_ts);
     },
+    get filteredTransactions() {
+      const list = this.transactionsSorted;
+      return this.txnFilter === 'all' ? list : list.filter((t) => t.status === this.txnFilter);
+    },
+    get txnStats() {
+      const c = { completed: 0, aborted: 0, paused_escalated: 0, running: 0 };
+      this.transactions.forEach((t) => { if (c[t.status] !== undefined) c[t.status]++; });
+      return { total: this.transactions.length, ...c };
+    },
 
     get stats() {
       const c = { allow: 0, block: 0, escalate: 0 };
       this.records.forEach((r) => { if (c[r.decision] !== undefined) c[r.decision]++; });
       return { total: this.records.length, ...c };
     },
-    get filteredRecords() {
-      const list = this.filter === 'all' ? this.records : this.records.filter((r) => r.decision === this.filter);
-      return list.slice().reverse();
-    },
-    toggleExpand(hash) {
-      if (this.expandedHashes.has(hash)) this.expandedHashes.delete(hash); else this.expandedHashes.add(hash);
-    },
-    isExpanded(hash) { return this.expandedHashes.has(hash); },
     relTime(ts) {
       const diff = Math.max(0, Date.now() / 1000 - ts);
       if (diff < 5) return 'just now';

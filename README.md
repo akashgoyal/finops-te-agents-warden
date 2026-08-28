@@ -100,14 +100,16 @@ to a dark ops console — one screen, two audiences):
 - **Center — pipeline strip + Live agent trace**: every stage (guardrail
   → triage → review) as it happens, plus the orchestrator's own decision
   as a distinct entry, not folded into a call.
-- **Right — stats, Transactions, audit ledger.** Transactions is one row
-  per trip: input, start time, the actual agent order that ran (varies by
-  route and by what got blocked), finish time, duration, status. **Click
-  a row** to replay that trip in the center trace panel exactly as it ran
-  — same rationale, same reviewed-by, same orchestrator decision, read
-  back from the persisted `TransactionStep` record rather than the live
-  stream. "← Back to live" returns the center panel to the current run;
-  starting a new trip does the same automatically.
+- **Right — stats + Transactions**, one card per trip (not one card per
+  call — the individual-call ledger got folded into this instead of
+  living as its own long list). Each card shows the input, agent order,
+  timing, and status; **hovering** it reveals the full agent-by-agent
+  detail — decision, rationale, reviewed-by, and a copyable signed token
+  per call — read from the persisted `TransactionStep` record. **Clicking**
+  a card replays that trip in the center trace panel instead, for the
+  fuller view; "← Back to live" returns the center panel to the current
+  run, and starting a new trip does the same automatically. Filterable by
+  status (All / Completed / Aborted / Escalated).
 - Everything above is driven by one `GET /v1/events` Server-Sent Events
   stream — `warden/events.py` is a simple in-process pub/sub that the
   gateway publishes to at every stage, not just the final decision.
