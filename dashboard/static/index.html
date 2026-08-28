@@ -95,7 +95,13 @@
   .sidebar-steps { flex: 1; overflow-y: auto; padding: 6px 22px 22px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
 
   .main-content { flex: 1; min-width: 0; background: var(--bg); color: var(--ink); padding: 22px 24px 60px; }
-  .main-inner { max-width: 980px; }
+  .main-inner { max-width: 1440px; }
+
+  /* ---------- content columns: trace (center) | transactions + ledger (right) ---------- */
+  .content-columns { display: grid; grid-template-columns: 1fr 1.35fr; gap: 18px; align-items: start; }
+  @media (max-width: 1180px) { .content-columns { grid-template-columns: 1fr; } }
+  .col-center .panel { margin-bottom: 0; }
+  .col-center .panel-body { max-height: 560px; }
 
   /* ---------- top bar ---------- */
   .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -310,58 +316,6 @@
         </template>
       </section>
 
-      <div class="panel">
-        <div class="panel-head">
-          <div class="panel-title">🧭 Live agent trace <span style="color:var(--ink-faint); font-weight:400;">— what Warden actually does</span></div>
-          <div class="panel-sub">Every stage, every call, as it happens</div>
-        </div>
-        <div class="panel-body" x-ref="traceBody">
-          <div class="panel-empty" x-show="traceOrder.length === 0">
-            No calls in flight. The trace fills in live, stage by stage, once a run starts.
-          </div>
-          <template x-for="id in traceOrder" :key="id">
-            <div class="trace-entry fade-enter" :class="trace[id].kind === 'orchestrator' ? 'orchestrator' : ''">
-
-              <template x-if="trace[id].kind === 'orchestrator'">
-                <div>
-                  <div class="orch-head">
-                    🧠 Orchestrator
-                    <span class="orch-action" x-text="trace[id].action"></span>
-                  </div>
-                  <div class="orch-target" x-show="trace[id].target_agent" x-text="'→ retry via ' + trace[id].target_agent"></div>
-                  <div class="trace-rationale" x-text="trace[id].rationale"></div>
-                </div>
-              </template>
-
-              <template x-if="trace[id].kind !== 'orchestrator'">
-                <div>
-                  <div class="trace-head">
-                    <div>
-                      <div class="trace-agent" x-text="trace[id].agent_id"></div>
-                      <div class="trace-tool" x-text="arrow(trace[id].tool)"></div>
-                    </div>
-                    <div class="trace-steps">
-                      <template x-for="(s, i) in ['guardrail','triage','review']" :key="s">
-                        <span style="display:contents">
-                          <span class="t-dot" :class="dotClass(trace[id], s)"></span>
-                          <span class="t-dot-line" x-show="i < 2"></span>
-                        </span>
-                      </template>
-                    </div>
-                  </div>
-                  <div class="trace-decision" x-show="trace[id].decision">
-                    <span class="pill" :class="trace[id].decision" x-text="trace[id].decision"></span>
-                    <span style="font-family:var(--font-mono); font-size:10.5px; color:var(--ink-faint);" x-text="trace[id].reviewed_by"></span>
-                  </div>
-                  <div class="trace-rationale" x-show="trace[id].decision" x-text="trace[id].rationale"></div>
-                </div>
-              </template>
-
-            </div>
-          </template>
-        </div>
-      </div>
-
       <section class="stats">
         <div class="stat-tile"><div class="stat-value" x-text="stats.total"></div><div class="stat-label">Calls</div></div>
         <div class="stat-tile allow"><div class="stat-value" x-text="stats.allow"></div><div class="stat-label">Allowed</div></div>
@@ -369,83 +323,145 @@
         <div class="stat-tile escalate"><div class="stat-value" x-text="stats.escalate"></div><div class="stat-label">Escalated</div></div>
       </section>
 
-      <div class="feed-controls">
-        <div class="section-label">Transactions <span style="color:var(--ink-faint); font-weight:400;">— one row per trip run</span></div>
-      </div>
-      <div class="table-scroll">
-        <table class="txn-table">
-          <thead>
-            <tr><th>Trip</th><th>Start</th><th>Agent order</th><th>Finish</th><th>Duration</th><th>Status</th></tr>
-          </thead>
-          <tbody>
-            <template x-if="transactionsSorted.length === 0">
-              <tr><td colspan="6" style="text-align:center; color:var(--ink-faint); padding:22px;">No transactions yet — click a trip pill on the left.</td></tr>
-            </template>
-            <template x-for="t in transactionsSorted" :key="t.transaction_id">
-              <tr>
-                <td class="txn-input" x-text="t.input.label"></td>
-                <td class="txn-time" x-text="fmtTime(t.start_ts)"></td>
-                <td>
-                  <div class="agent-order">
-                    <template x-for="(a, i) in t.steps.map(s => s.agent_id)" :key="i">
-                      <span style="display:contents">
-                        <span class="agent-chip" x-text="shortAgent(a)"></span>
-                        <span class="agent-arrow" x-show="i < t.steps.length - 1">→</span>
-                      </span>
-                    </template>
-                  </div>
-                </td>
-                <td class="txn-time" x-text="t.finish_ts ? fmtTime(t.finish_ts) : '—'"></td>
-                <td class="txn-time" x-text="t.finish_ts ? fmtDuration(t.finish_ts - t.start_ts) : '—'"></td>
-                <td><span class="pill" :class="t.status === 'running' ? 'running-status' : t.status" x-text="t.status"></span></td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
+      <div class="content-columns">
 
-      <div class="feed-controls">
-        <div class="section-label">Audit ledger</div>
-        <div class="tabs">
-          <button class="tab" :class="filter === 'all' ? 'active' : ''" @click="filter = 'all'" x-text="'All (' + stats.total + ')'"></button>
-          <button class="tab" :class="filter === 'allow' ? 'active' : ''" @click="filter = 'allow'" x-text="'Allow (' + stats.allow + ')'"></button>
-          <button class="tab" :class="filter === 'block' ? 'active' : ''" @click="filter = 'block'" x-text="'Block (' + stats.block + ')'"></button>
-          <button class="tab" :class="filter === 'escalate' ? 'active' : ''" @click="filter = 'escalate'" x-text="'Escalate (' + stats.escalate + ')'"></button>
-        </div>
-      </div>
-
-      <div class="feed">
-        <div class="empty" x-show="filteredRecords.length === 0">
-          <div class="empty-icon">🛰️</div>
-          <div class="empty-title">No calls yet</div>
-          <div class="empty-sub">Click a trip pill on the left, or <code>python -m demo.run_demo</code> from a terminal.</div>
-        </div>
-        <template x-for="r in filteredRecords" :key="r.hash">
-          <div class="card" :class="isExpanded(r.hash) ? 'open' : ''">
-            <button class="card-head" @click="toggleExpand(r.hash)">
-              <span class="pill" :class="r.decision" x-text="r.decision"></span>
-              <span class="card-main">
-                <div class="card-agent"><span x-text="r.agent_id"></span> <span class="card-tool" x-text="arrow(r.tool)"></span></div>
-                <div class="card-reviewer" x-text="r.reviewed_by"></div>
-              </span>
-              <span class="card-time" x-text="relTime(r.ts)"></span>
-              <span class="card-chevron">▸</span>
-            </button>
-            <div class="card-body">
-              <div class="card-body-inner">
-                <div class="rationale" x-text="r.rationale"></div>
-                <div class="kv-row"><b>Args</b></div>
-                <div class="args-json" x-text="JSON.stringify(r.args, null, 2)"></div>
-                <div class="kv-row" x-show="r.token">
-                  <b>Token</b>
-                  <span class="token-chip" x-text="(r.token || '').slice(0, 28) + '…'"></span>
-                  <button class="copy-btn" @click.stop="copyToken(r.token, $event)">Copy</button>
-                </div>
-                <div class="kv-row"><b>Hash</b><span class="token-chip" x-text="(r.hash || '').slice(0, 16) + '…'"></span></div>
+        <div class="col-center">
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">🧭 Live agent trace <span style="color:var(--ink-faint); font-weight:400;">— what Warden actually does</span></div>
+              <div class="panel-sub">Every stage, every call, as it happens</div>
+            </div>
+            <div class="panel-body" x-ref="traceBody">
+              <div class="panel-empty" x-show="traceOrder.length === 0">
+                No calls in flight. The trace fills in live, stage by stage, once a run starts.
               </div>
+              <template x-for="id in traceOrder" :key="id">
+                <div class="trace-entry fade-enter" :class="trace[id].kind === 'orchestrator' ? 'orchestrator' : ''">
+
+                  <template x-if="trace[id].kind === 'orchestrator'">
+                    <div>
+                      <div class="orch-head">
+                        🧠 Orchestrator
+                        <span class="orch-action" x-text="trace[id].action"></span>
+                      </div>
+                      <div class="orch-target" x-show="trace[id].target_agent" x-text="'→ retry via ' + trace[id].target_agent"></div>
+                      <div class="trace-rationale" x-text="trace[id].rationale"></div>
+                    </div>
+                  </template>
+
+                  <template x-if="trace[id].kind !== 'orchestrator'">
+                    <div>
+                      <div class="trace-head">
+                        <div>
+                          <div class="trace-agent" x-text="trace[id].agent_id"></div>
+                          <div class="trace-tool" x-text="arrow(trace[id].tool)"></div>
+                        </div>
+                        <div class="trace-steps">
+                          <template x-for="(s, i) in ['guardrail','triage','review']" :key="s">
+                            <span style="display:contents">
+                              <span class="t-dot" :class="dotClass(trace[id], s)"></span>
+                              <span class="t-dot-line" x-show="i < 2"></span>
+                            </span>
+                          </template>
+                        </div>
+                      </div>
+                      <div class="trace-decision" x-show="trace[id].decision">
+                        <span class="pill" :class="trace[id].decision" x-text="trace[id].decision"></span>
+                        <span style="font-family:var(--font-mono); font-size:10.5px; color:var(--ink-faint);" x-text="trace[id].reviewed_by"></span>
+                      </div>
+                      <div class="trace-rationale" x-show="trace[id].decision" x-text="trace[id].rationale"></div>
+                    </div>
+                  </template>
+
+                </div>
+              </template>
             </div>
           </div>
-        </template>
+        </div>
+
+        <div class="col-right">
+
+          <div class="feed-controls">
+            <div class="section-label">Transactions <span style="color:var(--ink-faint); font-weight:400;">— one row per trip run</span></div>
+          </div>
+          <div class="table-scroll">
+            <table class="txn-table">
+              <thead>
+                <tr><th>Trip</th><th>Start</th><th>Agent order</th><th>Finish</th><th>Duration</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                <template x-if="transactionsSorted.length === 0">
+                  <tr><td colspan="6" style="text-align:center; color:var(--ink-faint); padding:22px;">No transactions yet — click a trip pill on the left.</td></tr>
+                </template>
+                <template x-for="t in transactionsSorted" :key="t.transaction_id">
+                  <tr>
+                    <td class="txn-input" x-text="t.input.label"></td>
+                    <td class="txn-time" x-text="fmtTime(t.start_ts)"></td>
+                    <td>
+                      <div class="agent-order">
+                        <template x-for="(a, i) in t.steps.map(s => s.agent_id)" :key="i">
+                          <span style="display:contents">
+                            <span class="agent-chip" x-text="shortAgent(a)"></span>
+                            <span class="agent-arrow" x-show="i < t.steps.length - 1">→</span>
+                          </span>
+                        </template>
+                      </div>
+                    </td>
+                    <td class="txn-time" x-text="t.finish_ts ? fmtTime(t.finish_ts) : '—'"></td>
+                    <td class="txn-time" x-text="t.finish_ts ? fmtDuration(t.finish_ts - t.start_ts) : '—'"></td>
+                    <td><span class="pill" :class="t.status === 'running' ? 'running-status' : t.status" x-text="t.status"></span></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="feed-controls">
+            <div class="section-label">Audit ledger</div>
+            <div class="tabs">
+              <button class="tab" :class="filter === 'all' ? 'active' : ''" @click="filter = 'all'" x-text="'All (' + stats.total + ')'"></button>
+              <button class="tab" :class="filter === 'allow' ? 'active' : ''" @click="filter = 'allow'" x-text="'Allow (' + stats.allow + ')'"></button>
+              <button class="tab" :class="filter === 'block' ? 'active' : ''" @click="filter = 'block'" x-text="'Block (' + stats.block + ')'"></button>
+              <button class="tab" :class="filter === 'escalate' ? 'active' : ''" @click="filter = 'escalate'" x-text="'Escalate (' + stats.escalate + ')'"></button>
+            </div>
+          </div>
+
+          <div class="feed">
+            <div class="empty" x-show="filteredRecords.length === 0">
+              <div class="empty-icon">🛰️</div>
+              <div class="empty-title">No calls yet</div>
+              <div class="empty-sub">Click a trip pill on the left, or <code>python -m demo.run_demo</code> from a terminal.</div>
+            </div>
+            <template x-for="r in filteredRecords" :key="r.hash">
+              <div class="card" :class="isExpanded(r.hash) ? 'open' : ''">
+                <button class="card-head" @click="toggleExpand(r.hash)">
+                  <span class="pill" :class="r.decision" x-text="r.decision"></span>
+                  <span class="card-main">
+                    <div class="card-agent"><span x-text="r.agent_id"></span> <span class="card-tool" x-text="arrow(r.tool)"></span></div>
+                    <div class="card-reviewer" x-text="r.reviewed_by"></div>
+                  </span>
+                  <span class="card-time" x-text="relTime(r.ts)"></span>
+                  <span class="card-chevron">▸</span>
+                </button>
+                <div class="card-body">
+                  <div class="card-body-inner">
+                    <div class="rationale" x-text="r.rationale"></div>
+                    <div class="kv-row"><b>Args</b></div>
+                    <div class="args-json" x-text="JSON.stringify(r.args, null, 2)"></div>
+                    <div class="kv-row" x-show="r.token">
+                      <b>Token</b>
+                      <span class="token-chip" x-text="(r.token || '').slice(0, 28) + '…'"></span>
+                      <button class="copy-btn" @click.stop="copyToken(r.token, $event)">Copy</button>
+                    </div>
+                    <div class="kv-row"><b>Hash</b><span class="token-chip" x-text="(r.hash || '').slice(0, 16) + '…'"></span></div>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+
+        </div>
+
       </div>
 
     </div>
