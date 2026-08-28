@@ -16,10 +16,15 @@ class Settings(BaseSettings):
 
     ollama_host: str = "http://localhost:11434"
     # Small on purpose, and both already common in a local Ollama library —
-    # no multi-GB pull needed before you can see this run. Swap freely; just
-    # keep triage smaller than review, that split is the point of triage.
+    # no multi-GB pull needed before you can see this run. Swap freely.
     ollama_triage_model: str = "gemma2:2b"
-    ollama_review_model: str = "gemma2:2b"
+    # Tested, not assumed: gemma2:2b as reviewer aborted 3 real orchestrated
+    # trips in a row on hallucinated blocks of legitimately in-scope calls
+    # (flights.hold, hotel.hold). llama3.1:8b — same machine, no download,
+    # still small relative to any cloud model — ran the full 9-step trip,
+    # including the orchestrator's retry-after-block, with zero flakiness.
+    # Keep review a size class above triage; that gap is the point of triage.
+    ollama_review_model: str = "llama3.1:8b"
 
     google_api_key: str = ""
     gemini_model: str = "gemini-flash-latest"

@@ -49,3 +49,31 @@ class AuditRecord(BaseModel):
     token: str | None = None
     prev_hash: str = ""
     hash: str = ""
+
+
+class TransactionStep(BaseModel):
+    """One executed call within a transaction — including orchestrator-
+    injected retries, which is why `agent_id` alone can't be inferred from
+    the trip plan: the plan says hotel_agent, the actual step might be the
+    orchestrator's retry through payment_agent instead."""
+
+    agent_id: str
+    tool: str
+    decision: Decision
+    ts: float
+
+
+class Transaction(BaseModel):
+    """One full trip run — a whole orchestrated sequence, not a single call.
+    This is the thing the dashboard's Transactions table tracks: what was
+    asked for, when it started/finished, and the actual order agents ran
+    in — which can differ from the trip plan's order when the orchestrator
+    reroutes around a block.
+    """
+
+    transaction_id: str
+    input: dict  # the clicked trip preset — {id, label, origin, dest, ...}
+    start_ts: float = Field(default_factory=time.time)
+    finish_ts: float | None = None
+    steps: list[TransactionStep] = Field(default_factory=list)
+    status: str = "running"  # running | completed | aborted | paused_escalated

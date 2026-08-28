@@ -1,6 +1,6 @@
-"""The three demo agents Warden governs: search, booking, payment.
+"""The five demo agents Warden governs: search, booking, hotel, cab, payment.
 
-Each is deliberately a thin ADK Agent plus one "real" tool — the point of
+Each is deliberately a thin wrapper around one "real" tool — the point of
 the demo isn't a sophisticated fleet, it's making Warden's gateway the only
 path to actually doing anything. Every tool call goes through
 `call_via_warden` first; nothing calls `_TOOLS` directly.
@@ -14,11 +14,27 @@ WARDEN_URL = "http://localhost:8080"
 
 
 def _search_flights(args: dict) -> dict:
-    return {"flights": [{"id": "FL42", "price_usd": 310}]}
+    return {"flights": [{"id": "FL42", "price_usd": args.get("price_usd", 310)}]}
 
 
 def _hold_booking(args: dict) -> dict:
     return {"held": True, "hold_id": "HOLD-91"}
+
+
+def _search_hotel(args: dict) -> dict:
+    return {"hotels": [{"id": "HTL-7", "price_usd": args.get("price_usd", 300)}]}
+
+
+def _hold_hotel(args: dict) -> dict:
+    return {"held": True, "hold_id": "HTLHOLD-14"}
+
+
+def _search_cab(args: dict) -> dict:
+    return {"cabs": [{"id": "CAB-3", "eta_min": 6}]}
+
+
+def _book_cab(args: dict) -> dict:
+    return {"booked": True, "booking_id": "CABBK-52"}
 
 
 def _charge_payment(args: dict) -> dict:
@@ -28,6 +44,10 @@ def _charge_payment(args: dict) -> dict:
 _TOOLS = {
     "flights.search": _search_flights,
     "flights.hold": _hold_booking,
+    "hotel.search": _search_hotel,
+    "hotel.hold": _hold_hotel,
+    "cab.search": _search_cab,
+    "cab.book": _book_cab,
     "payments.charge": _charge_payment,
 }
 

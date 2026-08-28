@@ -27,27 +27,32 @@ workflow every finance org already has a policy for — travel and expense.
 
 ```mermaid
 flowchart LR
-    A[Fleet agent<br/>search / booking / payment] -- proposed tool call --> G[Gateway<br/>Cloud Run]
+    A[Fleet agent<br/>search / booking / hotel / cab / payment] -- proposed tool call --> G[Gateway<br/>Cloud Run]
     G --> H{Hard-limit guardrail<br/>plain code, no model}
-    H -- limit exceeded --> ESC[Escalate]
+    H -- limit exceeded --> ESC[Escalate<br/>orchestrator pauses the trip]
     H -- no hard limit fires --> T{Gemma triage<br/>free, fast}
     T -- plainly in scope --> ALLOW1[Allow]
-    T -- ambiguous / out of scope --> R[ADK policy reviewer<br/>Ollama locally / Gemini 3.5 Flash in the cloud]
+    T -- ambiguous / out of scope --> R[ADK policy reviewer<br/>Ollama locally / Gemini in the cloud]
     R --> D{Decision}
     D -- allow --> TOK[Sign authorization token]
-    D -- block / escalate --> LOG
+    D -- block --> ORCH[Orchestrator agent<br/>retry via the correct agent, or abort]
+    ORCH -- retry --> G
+    D -- escalate --> LOG
     TOK --> LOG[(Firestore audit ledger<br/>hash-chained)]
     LOG --> DASH[Live dashboard]
     ALLOW1 --> LOG
-    ESC --> LOG
 ```
 
-1. **Intercept** — every call from `search_agent`, `booking_agent`, or
-   `payment_agent` routes through the gateway (`warden/gateway.py`) instead
-   of hitting a tool directly.
+1. **Intercept** — every call from the fleet — `search_agent`,
+   `booking_agent`, `hotel_agent`, `cab_agent`, `payment_agent` — routes
+   through the gateway (`warden/gateway.py`) instead of hitting a tool
+   directly.
 2. **Hard-limit guardrail** — unambiguous numeric rules (a payment cap)
    are checked in plain code before any model runs (`warden/guardrails.py`).
-   No prompt, no variance between runs, no cost.
+   No prompt, no variance between runs, no cost. Firing this **pauses the
+   trip** — `warden/orchestrator.py` doesn't retry an over-cap charge
+   through a different agent, that wouldn't fix anything; it stops and
+   waits for a human.
 3. **Triage** — anything past the hard limits gets checked against the
    agent's declared scope in one cheap model pass (`warden/triage.py`).
    Plainly-fine calls stop here for free; nothing else touches a heavier
@@ -55,42 +60,52 @@ flowchart LR
 4. **Review** — anything ambiguous escalates to an ADK agent that reasons
    over `demo/policy.md` and returns a structured decision with a rationale
    (`warden/reviewer_agent.py`). The agent definition never changes — only
-   its model does: Ollama (local, via LiteLLM) by default, Gemini 3.5 Flash
-   once `MODEL_BACKEND=gemini`.
-5. **Decide + log** — an allow gets a signed, task-bounded token
+   its model does: Ollama (local, via LiteLLM) by default, Gemini once
+   `MODEL_BACKEND=gemini`.
+5. **Orchestrator, on block** — `warden/orchestrator_agent.py` decides what
+   happens next: find the agent(s) actually scoped for the blocked tool
+   (deterministically, from the registry — never invented by the model),
+   then ask an LLM whether retrying through that agent is reasonable or
+   the trip should abort. `warden/orchestrator.py` runs the retry
+   in-flight if so — this is the actual answer to "can the order of agent
+   execution vary?": yes, and it's decided live, not scripted per route.
+6. **Decide + log** — an allow gets a signed, task-bounded token
    (`warden/auth_token.py`); every decision — allow, block, or escalate —
    lands in a hash-chained Firestore ledger (`warden/ledger.py`) and shows
    up live on the dashboard at `/`.
 
-Three decisions, three different reliability stories, all in one demo run:
-ALLOW/BLOCK depend on whichever model is configured; ESCALATE from the
-hard-limit guardrail is deterministic and identical every time — on
-purpose, see "Known gaps" below.
-
-The demo fleet (`demo/`) is a T&E fleet — `search_agent`, `booking_agent`,
-`payment_agent` — running the exact shape of a corporate trip booking. It
-runs a normal search-hold-pay flow, then has `booking_agent` try to charge
-a payment directly — a call outside its declared scope, mirroring the real
-2026 incident pattern. Warden blocks it live. That's the moment the
-submission video is built around. A third pass — `payment_agent`, in
-scope, asking for more than its approval limit — shows the same gateway
-enforcing an ordinary T&E spend cap, not just an exploit.
+The demo fleet (`demo/`) runs a real T&E trip: flight, hotel, ground
+transport, one shared payment gate. `demo/trips.py` has four route
+presets (the dashboard's pills) with different prices — SFO → SIN's
+flight alone crosses the $2,000 cap, so that route always escalates and
+pauses; the others complete. Every route also has `hotel_agent` try to
+pay for the room directly once it's held — a real scope violation, not a
+scripted "exploit" preset — which Warden blocks and the orchestrator
+recovers from live, retrying through `payment_agent`. That recovery,
+happening in front of you instead of being narrated, is the moment the
+submission video is built around.
 
 ## The dashboard — trigger it, watch it, from one screen
 
 `http://localhost:8080/` isn't a log viewer, it's a live console:
 
-- **Run fleet scenario** button triggers `demo/scenarios.py` in-process
-  (`POST /v1/demo/run`) — no terminal needed.
-- **Traveler app** panel — what an employee booking the trip would see,
-  in plain language, updating as each step resolves.
-- **Live agent trace** panel — the technical view of the same run: every
-  stage (guardrail → triage → review) as it happens, not after the fact.
-- Both panels, the pipeline strip, and the stat tiles are all driven by
+- **Trip pills** are the input *and* the trigger — click a route
+  (`POST /v1/trips/run`) and the orchestrated trip starts. No terminal,
+  no separate Run button.
+- **Traveler app** panel (left) — what an employee booking the trip would
+  see, in plain language, including the recovery moment ("Recovering —
+  routing through payment_agent…").
+- **Live agent trace** panel (right) — the technical view of the same
+  run: every stage (guardrail → triage → review) as it happens, plus the
+  orchestrator's own decision as a distinct entry, not folded into a call.
+- **Transactions** table — one row per trip: input, start time, the
+  actual agent order that ran (varies by route and by what got blocked),
+  finish time, duration, status (`completed` / `aborted` / `paused_escalated`).
+- Everything above, plus the pipeline strip and stat tiles, is driven by
   one `GET /v1/events` Server-Sent Events stream — `warden/events.py` is a
-  simple in-process pub/sub that `warden/gateway.py` publishes to at every
-  stage of `_process_call()`, not just the final decision. `/v1/log` is
-  only used once, on page load, to backfill history from the ledger.
+  simple in-process pub/sub that the gateway publishes to at every stage,
+  not just the final decision. `/v1/log` and `/v1/transactions` are only
+  used once, on page load, to backfill history.
 - The audit ledger feed below is filterable and expandable, same as before.
 
 ## Quickstart — local models first, cloud later
@@ -100,21 +115,22 @@ running locally. `.env` defaults to `MODEL_BACKEND=ollama` — real model
 behavior, zero API key, zero GCP project, zero cost.
 
 ```bash
-ollama pull gemma2:2b     # skip if you already have it — `ollama list` to check
-ollama serve                # if it isn't already running as a background service
+ollama pull gemma2:2b     # triage — skip if you already have it
+ollama pull llama3.1:8b    # review + orchestrator — see "Known gaps" for why this size
+ollama serve                 # if it isn't already running as a background service
 
 make install               # venv + deps, copies .env.example -> .env
 make smoke-test              # one cheap call to each model — confirms Ollama actually answers
 make dev                      # gateway on http://localhost:8080, dashboard at /
-make demo                      # in a second terminal — happy path + exploit attempt
+make demo                      # in a second terminal — CLI version, or just click a pill in the browser
 ```
 
-`gemma2:2b` is a deliberate choice, not the only option — small enough to be
-fast on a laptop CPU, no multi-GB download if you don't already have it.
-Swap `OLLAMA_TRIAGE_MODEL` / `OLLAMA_REVIEW_MODEL` in `.env` for anything
-else already in `ollama list`; just keep triage the smaller of the two,
-that split is the point of triage. **Once the exploit-block demo runs clean
-against real local models**, move to the cloud:
+Both models are deliberate choices, not the only options — swap
+`OLLAMA_TRIAGE_MODEL` / `OLLAMA_REVIEW_MODEL` in `.env` for anything else
+already in `ollama list`. Keep triage the smaller of the two on purpose
+(that gap is the point of triage), and see "Known gaps" below before
+downgrading review below 8B — that's a tested finding, not a guess.
+**Once the demo runs clean against real local models**, move to the cloud:
 
 ```bash
 # .env: MODEL_BACKEND=gemini, GOOGLE_API_KEY=<from aistudio.google.com/apikey>
@@ -171,19 +187,22 @@ warden/
   models.py            shared pydantic types
   registry.py           agent scopes — Firestore, or in-memory for local dev
   ledger.py              hash-chained audit log — Firestore or in-memory
-  guardrails.py           deterministic hard limits, checked before any model
-  triage.py                Gemma first-pass filter
-  reviewer_agent.py         ADK agent — Ollama locally, Gemini in the cloud
-  auth_token.py               signs/verifies task-bounded tokens
-  events.py                     in-process pub/sub feeding the SSE stream
-  gateway.py                      FastAPI app — authorize, demo/run, events, log
+  transactions.py          one record per trip — input, start/finish, agent order, status
+  guardrails.py              deterministic hard limits, checked before any model
+  triage.py                    Gemma first-pass filter
+  reviewer_agent.py              ADK agent — Ollama locally, Gemini in the cloud
+  orchestrator_agent.py            decides retry-vs-abort after a blocked call
+  orchestrator.py                    runs a trip plan step by step, calls the above on block
+  auth_token.py                        signs/verifies task-bounded tokens
+  events.py                              in-process pub/sub feeding the SSE stream
+  gateway.py                              FastAPI app tying all of it together
 demo/
-  policy.md            the fleet's plain-language policy
+  policy.md            the fleet's plain-language policy (5 agents)
   scopes.py             the same policy, machine-readable
-  scenarios.py           the five demo calls — shared by run_demo.py and /v1/demo/run
-  fleet_agents.py           the three demo agents + their tools
-  run_demo.py                 CLI runner, same scenarios the dashboard's Run button uses
-dashboard/static/     live console — traveler view + agent trace + ledger, served at /
+  trips.py                route presets (the dashboard's pills) + the call plan per trip
+  fleet_agents.py           the five demo agents + their mock tools
+  run_demo.py                 CLI runner — same orchestrated trip the dashboard's pills trigger
+dashboard/static/     live console — trip pills, traveler view, agent trace, transactions, ledger
 scripts/               GCP setup + Cloud Run deploy
 tests/                  stub-mode tests, no network calls
 ```
@@ -197,11 +216,15 @@ tests/                  stub-mode tests, no network calls
   `auth_token.py` in a real deployment — left out here specifically because
   it likely needs billed Vertex AI Agent Builder usage, which wasn't
   available for this build.
-- `gemma2:2b` is genuinely noisy as a reviewer, not just a triage filter —
-  in one local run it blocked a legitimate `flights.hold` call with a
-  rationale that hallucinated a different tool entirely. The next run was
-  clean end-to-end. Triage over-escalating is cheap and safe (worst case,
-  an extra review hop); the reviewer itself reasoning incorrectly is the
-  actual risk this project exists to catch, in its own dependency. This is
-  the concrete reason `MODEL_BACKEND=gemini` exists as a one-line switch
-  rather than shipping only on a 2B local model.
+- `gemma2:2b` turned out to be genuinely too small for the reviewer role,
+  not just noisy — as the fleet grew to 5 agents / 5 policy sections, it
+  aborted 3 real orchestrated trips in a row, hallucinating blocks on
+  calls (`flights.hold`, `hotel.hold`) that were actually in scope. Triage
+  over-escalating is cheap and safe (worst case, an extra review hop); the
+  reviewer reasoning incorrectly is the actual risk this project exists to
+  catch, in its own dependency — so this got fixed, not just documented.
+  `OLLAMA_REVIEW_MODEL` now defaults to `llama3.1:8b` (`warden/config.py`),
+  same machine, no download, still small relative to any cloud model — and
+  it ran the full 9-step trip clean, including the orchestrator's
+  retry-after-block. `MODEL_BACKEND=gemini` still exists as a one-line
+  switch for the actually-recorded demo, if you want the extra margin.

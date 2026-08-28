@@ -23,6 +23,9 @@ class InMemoryRegistry:
     def get(self, agent_id: str) -> AgentScope | None:
         return self._store.get(agent_id)
 
+    def all(self) -> list[AgentScope]:
+        return list(self._store.values())
+
 
 class FirestoreRegistry:
     def __init__(self) -> None:
@@ -42,6 +45,9 @@ class FirestoreRegistry:
         if not doc.exists:
             return None
         return AgentScope(**doc.to_dict())
+
+    def all(self) -> list[AgentScope]:
+        return [AgentScope(**doc.to_dict()) for doc in self._client.collection(_COLLECTION).stream()]
 
 
 def get_registry():

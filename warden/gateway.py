@@ -1,10 +1,12 @@
 """The gateway every agent tool call routes through.
 
-    POST /v1/authorize   agent submits a proposed tool call, gets a decision
-    POST /v1/demo/run     runs demo/scenarios.py in-process, live-streamed
-    GET  /v1/events        SSE stream of every stage of every call, live
-    GET  /v1/log            the persisted audit ledger (page-load backfill)
-    GET  /healthz            Cloud Run readiness probe
+    POST /v1/authorize    agent submits a proposed tool call, gets a decision
+    POST /v1/trips/run      runs one orchestrated trip in-process, live-streamed
+    GET  /v1/events          SSE stream of every stage of every call, live
+    GET  /v1/trips            the trip presets — what the dashboard's pills offer
+    GET  /v1/transactions      trip-level records (input, agent order, status)
+    GET  /v1/log                 the persisted audit ledger (page-load backfill)
+    GET  /healthz                 Cloud Run readiness probe
 
 This is intentionally the only entry point. An agent that skips it and
 calls a tool directly is exactly the failure mode Warden exists to close.
@@ -14,12 +16,12 @@ from __future__ import annotations
 
 import json
 import threading
-import time
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, Response
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from warden import auth_token, events, triage
@@ -29,11 +31,13 @@ from warden.ledger import get_ledger
 from warden.models import AuditRecord, Decision, ReviewResult, ToolCallRequest
 from warden.registry import InMemoryRegistry, get_registry
 from warden.reviewer_agent import review
+from warden.transactions import get_store
 
 app = FastAPI(title="Warden", version="0.1.0")
 
 _registry = get_registry()
 _ledger = get_ledger()
+_transactions = get_store()
 
 if isinstance(_registry, InMemoryRegistry):
     # Local dev has no shared store between processes — seed the demo fleet's
@@ -61,39 +65,51 @@ def dashboard() -> FileResponse:
 
 
 def _process_call(
-    request: ToolCallRequest, *, label: str | None = None, traveler_copy: str | None = None
+    request: ToolCallRequest,
+    *,
+    label: str | None = None,
+    traveler_copy: str | None = None,
+    transaction_id: str | None = None,
 ) -> dict:
-    """The actual gateway logic — shared by /v1/authorize and /v1/demo/run.
+    """The actual gateway logic — shared by /v1/authorize and every step
+    warden/orchestrator.py runs.
 
     Publishes a warden.events entry at every stage, not just the final
-    decision, so the dashboard can render the call arriving, being checked,
-    and being decided as three (or more) separate live moments instead of
-    one opaque round trip.
+    decision, tagged with `transaction_id` when this call is part of an
+    orchestrated trip, so the dashboard can group live events under the
+    right transaction instead of just a flat call-by-call feed.
     """
     settings = get_settings()
     call_id = events.new_call_id()
 
     events.publish({
-        "call_id": call_id, "stage": "intercept", "label": label, "traveler_copy": traveler_copy,
+        "call_id": call_id, "transaction_id": transaction_id, "stage": "intercept",
+        "label": label, "traveler_copy": traveler_copy,
         "agent_id": request.agent_id, "tool": request.tool,
         "args": request.args, "reason": request.reason,
     })
 
     scope = _registry.get(request.agent_id)
 
-    events.publish({"call_id": call_id, "stage": "guardrail", "status": "checking"})
+    events.publish({"call_id": call_id, "transaction_id": transaction_id, "stage": "guardrail", "status": "checking"})
     hard_limit = check_hard_limits(request, scope)
 
     if hard_limit is not None:
-        events.publish({"call_id": call_id, "stage": "guardrail", "status": "fired", "detail": hard_limit.rationale})
+        events.publish({
+            "call_id": call_id, "transaction_id": transaction_id, "stage": "guardrail",
+            "status": "fired", "detail": hard_limit.rationale,
+        })
         result = hard_limit
     else:
-        events.publish({"call_id": call_id, "stage": "guardrail", "status": "pass"})
+        events.publish({"call_id": call_id, "transaction_id": transaction_id, "stage": "guardrail", "status": "pass"})
 
         triage_model = settings.ollama_triage_model if settings.model_backend == "ollama" else settings.gemma_model
-        events.publish({"call_id": call_id, "stage": "triage", "status": "checking", "model": triage_model})
+        events.publish({
+            "call_id": call_id, "transaction_id": transaction_id, "stage": "triage",
+            "status": "checking", "model": triage_model,
+        })
         fast_path = triage.quick_check(request, scope)
-        events.publish({"call_id": call_id, "stage": "triage", "status": fast_path})
+        events.publish({"call_id": call_id, "transaction_id": transaction_id, "stage": "triage", "status": fast_path})
 
         if fast_path == "safe":
             result = ReviewResult(
@@ -103,9 +119,15 @@ def _process_call(
             )
         else:
             review_model = settings.ollama_review_model if settings.model_backend == "ollama" else settings.gemini_model
-            events.publish({"call_id": call_id, "stage": "review", "status": "checking", "model": review_model})
+            events.publish({
+                "call_id": call_id, "transaction_id": transaction_id, "stage": "review",
+                "status": "checking", "model": review_model,
+            })
             result = review(request, scope)
-            events.publish({"call_id": call_id, "stage": "review", "status": "done", "reviewed_by": result.reviewed_by})
+            events.publish({
+                "call_id": call_id, "transaction_id": transaction_id, "stage": "review",
+                "status": "done", "reviewed_by": result.reviewed_by,
+            })
 
     token = None
     if result.decision == Decision.ALLOW:
@@ -114,8 +136,9 @@ def _process_call(
         )
 
     events.publish({
-        "call_id": call_id, "stage": "decision", "decision": result.decision.value,
-        "rationale": result.rationale, "reviewed_by": result.reviewed_by, "token": token,
+        "call_id": call_id, "transaction_id": transaction_id, "stage": "decision",
+        "decision": result.decision.value, "rationale": result.rationale,
+        "reviewed_by": result.reviewed_by, "token": token,
     })
 
     record = AuditRecord(
@@ -130,8 +153,9 @@ def _process_call(
     _ledger.append(record)
 
     events.publish({
-        "call_id": call_id, "stage": "ledger", "status": "recorded",
-        "hash": record.hash, "prev_hash": record.prev_hash, "record": record.model_dump(),
+        "call_id": call_id, "transaction_id": transaction_id, "stage": "ledger",
+        "status": "recorded", "hash": record.hash, "prev_hash": record.prev_hash,
+        "record": record.model_dump(),
     })
 
     return {
@@ -167,22 +191,38 @@ async def sse_events():
     )
 
 
+@app.get("/v1/trips")
+def list_trips() -> list[dict]:
+    """What the dashboard's pills offer — one source of truth, same
+    presets the CLI (`python -m demo.run_demo`) uses."""
+    from demo.trips import TRIP_PRESETS
+
+    return list(TRIP_PRESETS.values())
+
+
 _demo_lock = threading.Lock()
 _demo_running = False
 
 
-@app.post("/v1/demo/run")
-def run_demo(background_tasks: BackgroundTasks, response: Response) -> dict:
-    """Triggered by the dashboard's Run button. Runs demo/scenarios.py
-    in-process (not over HTTP, unlike the CLI script) so each stage's
-    event publishes without an extra network hop, and returns immediately
-    — the actual run happens in a background task; the dashboard watches
-    it happen over /v1/events, not this response.
+class RunTripRequest(BaseModel):
+    preset_id: str
+
+
+@app.post("/v1/trips/run")
+def run_trip_endpoint(body: RunTripRequest, background_tasks: BackgroundTasks, response: Response) -> dict:
+    """Triggered by clicking a trip pill in the dashboard. Runs
+    warden/orchestrator.py's run_trip() in-process as a background task —
+    the dashboard watches it happen over /v1/events, not this response.
 
     Rejects a second run while one's in flight — two runs' events
-    interleaved on the same call_id stream is genuinely confusing to watch,
-    confirmed while testing this by firing two before the first finished.
+    interleaved on the same stream is genuinely confusing to watch,
+    confirmed while testing an earlier version of this endpoint.
     """
+    from demo.trips import TRIP_PRESETS
+
+    if body.preset_id not in TRIP_PRESETS:
+        raise HTTPException(status_code=404, detail=f"Unknown trip preset {body.preset_id!r}")
+
     global _demo_running
     with _demo_lock:
         if _demo_running:
@@ -190,28 +230,23 @@ def run_demo(background_tasks: BackgroundTasks, response: Response) -> dict:
             return {"status": "already_running"}
         _demo_running = True
 
-    from demo.scenarios import SCENARIOS
-
-    run_id = events.new_call_id()
-
     def _run() -> None:
         global _demo_running
+        from warden.orchestrator import run_trip
+
         try:
-            events.publish({"type": "demo_run_started", "run_id": run_id})
-            for step in SCENARIOS:
-                request = ToolCallRequest(
-                    agent_id=step["agent_id"], tool=step["tool"],
-                    args=step["args"], reason=step["reason"],
-                )
-                _process_call(request, label=step["label"], traveler_copy=step["traveler_copy"])
-                time.sleep(0.4)  # lets the UI render each stage instead of flashing by
+            run_trip(body.preset_id)
         finally:
-            events.publish({"type": "demo_run_finished", "run_id": run_id})
             with _demo_lock:
                 _demo_running = False
 
     background_tasks.add_task(_run)
-    return {"run_id": run_id, "status": "started"}
+    return {"status": "started", "preset_id": body.preset_id}
+
+
+@app.get("/v1/transactions")
+def list_transactions() -> list[dict]:
+    return [t.model_dump() for t in _transactions.all()]
 
 
 @app.get("/v1/log")

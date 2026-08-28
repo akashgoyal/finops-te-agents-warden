@@ -88,10 +88,13 @@
   .panel-body { padding: 14px 16px; overflow-y: auto; max-height: 360px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
   .panel-empty { color: var(--ink-faint); font-size: 12.5px; text-align: center; padding: 30px 10px; }
 
-  /* traveler trip summary */
-  .trip-card { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; margin: 14px 16px 0; font-size: 13px; }
-  .trip-route { font-family: var(--font-mono); font-weight: 600; }
-  .trip-fare { font-family: var(--font-mono); color: var(--accent); font-weight: 600; }
+  /* traveler trip pills — the input, and the run trigger */
+  .trip-pills { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 16px 0; }
+  .trip-pill { display: flex; align-items: center; gap: 7px; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink); font-family: var(--font-mono); font-weight: 600; font-size: 12.5px; border-radius: 999px; padding: 8px 14px; transition: all .15s ease; }
+  .trip-pill:hover:not(:disabled) { border-color: var(--accent); }
+  .trip-pill:disabled { opacity: .45; cursor: default; }
+  .trip-pill.running { opacity: 1; border-color: var(--accent); background: var(--accent-tint); }
+  .trip-pill .spinner { border-top-color: var(--accent); border-color: rgba(224,138,52,.25); }
 
   /* traveler steps */
   .t-step { display: flex; align-items: center; gap: 10px; padding: 9px 11px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; }
@@ -119,6 +122,28 @@
   .trace-rationale { font-size: 11.5px; color: var(--ink-faint); margin-top: 4px; line-height: 1.4; }
   .trace-labels { display: flex; justify-content: space-between; margin-top: 4px; }
   .trace-labels span { font-family: var(--font-mono); font-size: 8.5px; color: var(--ink-faint); text-transform: uppercase; width: 20px; text-align: center; }
+
+  /* orchestrator decision — a distinct kind of trace entry, not a call */
+  .trace-entry.orchestrator { border-color: var(--escalate); background: var(--escalate-tint); }
+  .orch-head { display: flex; align-items: center; gap: 7px; font-weight: 600; font-size: 12.5px; margin-bottom: 4px; }
+  .orch-action { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: .03em; border-radius: 999px; padding: 2px 8px; background: var(--escalate); color: var(--bg); }
+  .orch-target { font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); }
+
+  /* ---------- transactions table ---------- */
+  .table-scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 20px; }
+  .txn-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 640px; }
+  .txn-table th { text-align: left; font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-faint); font-weight: 500; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .txn-table td { padding: 10px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+  .txn-table tr:last-child td { border-bottom: none; }
+  .txn-input { font-weight: 600; }
+  .txn-time { font-family: var(--font-mono); color: var(--ink-faint); white-space: nowrap; }
+  .agent-order { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  .agent-chip { font-family: var(--font-mono); font-size: 10.5px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; color: var(--ink-soft); }
+  .agent-arrow { color: var(--ink-faint); font-size: 10px; }
+  .pill.running-status { background: var(--accent-tint); color: var(--accent); }
+  .pill.completed { background: var(--allow-tint); color: var(--allow); }
+  .pill.aborted { background: var(--block-tint); color: var(--block); }
+  .pill.paused_escalated { background: var(--escalate-tint); color: var(--escalate); }
 
   /* ---------- stats ---------- */
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
@@ -195,11 +220,6 @@
         <span class="live-dot" :class="live ? 'on' : 'off'"></span>
         <span x-text="liveLabel"></span>
       </div>
-      <button class="run-btn" :disabled="running" @click="runDemo()">
-        <span x-show="running" class="spinner"></span>
-        <span x-show="!running">▶</span>
-        <span x-text="running ? 'Running…' : 'Run fleet scenario'"></span>
-      </button>
     </div>
   </header>
 
@@ -222,14 +242,21 @@
         <div class="panel-title">🧳 Traveler app <span style="color:var(--ink-faint); font-weight:400;">— what the employee sees</span></div>
         <div class="panel-sub">Corporate travel booking, from the traveler's side of the screen</div>
       </div>
-      <div class="trip-card">
-        <span class="trip-route">SFO → SIN</span>
-        <span style="color:var(--ink-faint); font-size:11px;">business trip</span>
-        <span class="trip-fare">$310</span>
+      <div class="trip-pills">
+        <template x-for="trip in trips" :key="trip.id">
+          <button
+            class="trip-pill"
+            :class="{active: activeTripId === trip.id, running: running && activeTripId === trip.id}"
+            :disabled="running"
+            @click="runTrip(trip.id)">
+            <span x-show="running && activeTripId === trip.id" class="spinner"></span>
+            <span x-text="trip.label"></span>
+          </button>
+        </template>
       </div>
       <div class="panel-body" x-ref="travelerBody">
         <div class="panel-empty" x-show="travelerSteps.length === 0">
-          Click <b>Run fleet scenario</b> to book this trip with the agent fleet.
+          Click a route above to book that trip with the agent fleet.
         </div>
         <template x-for="step in travelerSteps" :key="step.call_id">
           <div class="t-step fade-enter" :class="step.status">
@@ -255,26 +282,43 @@
           No calls in flight. The trace fills in live, stage by stage, once a run starts.
         </div>
         <template x-for="id in traceOrder" :key="id">
-          <div class="trace-entry fade-enter">
-            <div class="trace-head">
+          <div class="trace-entry fade-enter" :class="trace[id].kind === 'orchestrator' ? 'orchestrator' : ''">
+
+            <template x-if="trace[id].kind === 'orchestrator'">
               <div>
-                <div class="trace-agent" x-text="trace[id].agent_id"></div>
-                <div class="trace-tool" x-text="arrow(trace[id].tool)"></div>
+                <div class="orch-head">
+                  🧠 Orchestrator
+                  <span class="orch-action" x-text="trace[id].action"></span>
+                </div>
+                <div class="orch-target" x-show="trace[id].target_agent" x-text="'→ retry via ' + trace[id].target_agent"></div>
+                <div class="trace-rationale" x-text="trace[id].rationale"></div>
               </div>
-              <div class="trace-steps">
-                <template x-for="(s, i) in ['guardrail','triage','review']" :key="s">
-                  <span style="display:contents">
-                    <span class="t-dot" :class="dotClass(trace[id], s)"></span>
-                    <span class="t-dot-line" x-show="i < 2"></span>
-                  </span>
-                </template>
+            </template>
+
+            <template x-if="trace[id].kind !== 'orchestrator'">
+              <div>
+                <div class="trace-head">
+                  <div>
+                    <div class="trace-agent" x-text="trace[id].agent_id"></div>
+                    <div class="trace-tool" x-text="arrow(trace[id].tool)"></div>
+                  </div>
+                  <div class="trace-steps">
+                    <template x-for="(s, i) in ['guardrail','triage','review']" :key="s">
+                      <span style="display:contents">
+                        <span class="t-dot" :class="dotClass(trace[id], s)"></span>
+                        <span class="t-dot-line" x-show="i < 2"></span>
+                      </span>
+                    </template>
+                  </div>
+                </div>
+                <div class="trace-decision" x-show="trace[id].decision">
+                  <span class="pill" :class="trace[id].decision" x-text="trace[id].decision"></span>
+                  <span style="font-family:var(--font-mono); font-size:10.5px; color:var(--ink-faint);" x-text="trace[id].reviewed_by"></span>
+                </div>
+                <div class="trace-rationale" x-show="trace[id].decision" x-text="trace[id].rationale"></div>
               </div>
-            </div>
-            <div class="trace-decision" x-show="trace[id].decision">
-              <span class="pill" :class="trace[id].decision" x-text="trace[id].decision"></span>
-              <span style="font-family:var(--font-mono); font-size:10.5px; color:var(--ink-faint);" x-text="trace[id].reviewed_by"></span>
-            </div>
-            <div class="trace-rationale" x-show="trace[id].decision" x-text="trace[id].rationale"></div>
+            </template>
+
           </div>
         </template>
       </div>
@@ -288,6 +332,41 @@
     <div class="stat-tile block"><div class="stat-value" x-text="stats.block"></div><div class="stat-label">Blocked</div></div>
     <div class="stat-tile escalate"><div class="stat-value" x-text="stats.escalate"></div><div class="stat-label">Escalated</div></div>
   </section>
+
+  <div class="feed-controls">
+    <div class="section-label">Transactions <span style="color:var(--ink-faint); font-weight:400;">— one row per trip run</span></div>
+  </div>
+  <div class="table-scroll">
+    <table class="txn-table">
+      <thead>
+        <tr><th>Trip</th><th>Start</th><th>Agent order</th><th>Finish</th><th>Duration</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <template x-if="transactionsSorted.length === 0">
+          <tr><td colspan="6" style="text-align:center; color:var(--ink-faint); padding:22px;">No transactions yet — click a trip pill above.</td></tr>
+        </template>
+        <template x-for="t in transactionsSorted" :key="t.transaction_id">
+          <tr>
+            <td class="txn-input" x-text="t.input.label"></td>
+            <td class="txn-time" x-text="fmtTime(t.start_ts)"></td>
+            <td>
+              <div class="agent-order">
+                <template x-for="(a, i) in t.steps.map(s => s.agent_id)" :key="i">
+                  <span style="display:contents">
+                    <span class="agent-chip" x-text="shortAgent(a)"></span>
+                    <span class="agent-arrow" x-show="i < t.steps.length - 1">→</span>
+                  </span>
+                </template>
+              </div>
+            </td>
+            <td class="txn-time" x-text="t.finish_ts ? fmtTime(t.finish_ts) : '—'"></td>
+            <td class="txn-time" x-text="t.finish_ts ? fmtDuration(t.finish_ts - t.start_ts) : '—'"></td>
+            <td><span class="pill" :class="t.status === 'running' ? 'running-status' : t.status" x-text="t.status"></span></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
 
   <div class="feed-controls">
     <div class="section-label">Audit ledger</div>
@@ -341,11 +420,15 @@ function wardenApp() {
     live: false,
     liveLabel: 'Connecting…',
     running: false,
+    activeTripId: null,
 
+    trips: [],
     travelerSteps: [],
     traceOrder: [],
     trace: {},
     lit: { intercept: false, guardrail: false, triage: false, review: false, ledger: false },
+
+    transactions: [],
 
     records: [],
     seenHashes: new Set(),
@@ -353,8 +436,17 @@ function wardenApp() {
     filter: 'all',
 
     init() {
+      this.loadTrips();
       this.loadInitialLedger();
+      this.loadInitialTransactions();
       this.connectSSE();
+    },
+
+    async loadTrips() {
+      try {
+        const res = await fetch('/v1/trips');
+        this.trips = await res.json();
+      } catch (e) { /* gateway not up yet */ }
     },
 
     async loadInitialLedger() {
@@ -363,6 +455,13 @@ function wardenApp() {
         const data = await res.json();
         this.records = data;
         data.forEach((r) => this.seenHashes.add(r.hash));
+      } catch (e) { /* gateway not up yet */ }
+    },
+
+    async loadInitialTransactions() {
+      try {
+        const res = await fetch('/v1/transactions');
+        this.transactions = await res.json();
       } catch (e) { /* gateway not up yet */ }
     },
 
@@ -376,20 +475,46 @@ function wardenApp() {
     },
 
     handleEvent(evt) {
-      if (evt.type === 'demo_run_started') {
+      if (evt.type === 'transaction_started') {
         this.running = true;
+        this.activeTripId = evt.input.id;
         this.travelerSteps = [];
         this.traceOrder = [];
         this.trace = {};
+        this.transactions.unshift({
+          transaction_id: evt.transaction_id, input: evt.input,
+          start_ts: evt.start_ts, finish_ts: null, steps: [], status: 'running',
+        });
         return;
       }
-      if (evt.type === 'demo_run_finished') { this.running = false; return; }
+      if (evt.type === 'transaction_finished') {
+        this.running = false;
+        const txn = this.transactions.find((t) => t.transaction_id === evt.transaction_id);
+        if (txn) { txn.finish_ts = evt.finish_ts; txn.status = evt.status; }
+        return;
+      }
+      if (evt.type === 'orchestrator_decision') {
+        const oid = 'orch-' + this.traceOrder.length + '-' + Date.now();
+        this.trace[oid] = {
+          kind: 'orchestrator', action: evt.action, target_agent: evt.target_agent,
+          rationale: evt.rationale, decided_by: evt.decided_by,
+        };
+        this.traceOrder.push(oid);
+        this.$nextTick(() => this.scrollToBottom(this.$refs.traceBody));
+
+        const friendly = evt.action === 'retry'
+          ? `Recovering — routing through ${evt.target_agent}…`
+          : 'Trip aborted — no safe way to recover this step.';
+        this.travelerSteps.push({ call_id: oid, traveler_copy: friendly, status: 'active' });
+        this.$nextTick(() => this.scrollToBottom(this.$refs.travelerBody));
+        return;
+      }
 
       const id = evt.call_id;
       if (!id) return;
 
       if (!this.trace[id]) {
-        this.trace[id] = { agent_id: evt.agent_id, tool: evt.tool, label: evt.label, stages: {}, decision: null };
+        this.trace[id] = { kind: 'call', agent_id: evt.agent_id, tool: evt.tool, label: evt.label, stages: {}, decision: null };
         this.traceOrder.push(id);
         this.$nextTick(() => this.scrollToBottom(this.$refs.traceBody));
       }
@@ -411,6 +536,14 @@ function wardenApp() {
         entry.reviewed_by = evt.reviewed_by;
         const step = this.travelerSteps.find((s) => s.call_id === id);
         if (step) step.status = evt.decision;
+
+        if (evt.transaction_id) {
+          const txn = this.transactions.find((t) => t.transaction_id === evt.transaction_id);
+          // The "decision" stage event itself carries no agent_id/tool —
+          // only "intercept" does. Read them back from the trace entry
+          // this same call_id already populated, rather than from evt.
+          if (txn) txn.steps.push({ agent_id: entry.agent_id, tool: entry.tool, decision: evt.decision, ts: evt.ts });
+        }
       }
 
       if (evt.stage === 'ledger' && evt.record && !this.seenHashes.has(evt.record.hash)) {
@@ -426,6 +559,16 @@ function wardenApp() {
 
     scrollToBottom(el) { if (el) el.scrollTop = el.scrollHeight; },
     arrow(tool) { return '→ ' + tool; },
+    shortAgent(agentId) { return (agentId || '').replace('_agent', ''); },
+
+    fmtTime(ts) {
+      if (!ts) return '—';
+      return new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    },
+    fmtDuration(seconds) {
+      if (seconds == null) return '—';
+      return seconds < 60 ? seconds.toFixed(1) + 's' : Math.floor(seconds / 60) + 'm ' + Math.round(seconds % 60) + 's';
+    },
 
     dotClass(entry, stage) {
       const s = entry.stages[stage];
@@ -434,13 +577,22 @@ function wardenApp() {
       return 'done';
     },
 
-    async runDemo() {
+    async runTrip(presetId) {
       if (this.running) return;
       this.running = true;
+      this.activeTripId = presetId;
       try {
-        const res = await fetch('/v1/demo/run', { method: 'POST' });
-        if (res.status === 409) { /* server already running one; state will resync via SSE */ }
+        const res = await fetch('/v1/trips/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ preset_id: presetId }),
+        });
+        if (res.status === 409) { /* server already running one; state resyncs via SSE */ }
       } catch (e) { this.running = false; }
+    },
+
+    get transactionsSorted() {
+      return this.transactions.slice().sort((a, b) => b.start_ts - a.start_ts);
     },
 
     get stats() {
