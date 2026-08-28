@@ -69,6 +69,7 @@ class TransactionStep(BaseModel):
     # kind == "call"
     agent_id: str | None = None
     tool: str | None = None
+    args: dict = Field(default_factory=dict)
     decision: Decision | None = None
     rationale: str = ""
     reviewed_by: str = ""

@@ -52,7 +52,7 @@ def run_trip(preset_id: str) -> Transaction:
             transaction_id=txn.transaction_id,
         )
         txn.steps.append(TransactionStep(
-            agent_id=step["agent_id"], tool=step["tool"],
+            agent_id=step["agent_id"], tool=step["tool"], args=step["args"],
             decision=Decision(result["decision"]),
             rationale=result["rationale"], reviewed_by=result["reviewed_by"],
             token=result.get("token"), ts=time.time(),
@@ -83,7 +83,7 @@ def run_trip(preset_id: str) -> Transaction:
             "blocked_agent": step["agent_id"], "tool": step["tool"],
         })
         txn.steps.append(TransactionStep(
-            kind="orchestrator", agent_id=step["agent_id"], tool=step["tool"],
+            kind="orchestrator", agent_id=step["agent_id"], tool=step["tool"], args=step["args"],
             action=recovery["action"], target_agent=recovery["target_agent"],
             rationale=recovery["rationale"], reviewed_by=recovery["decided_by"],
             ts=time.time(),
@@ -103,7 +103,7 @@ def run_trip(preset_id: str) -> Transaction:
             transaction_id=txn.transaction_id,
         )
         txn.steps.append(TransactionStep(
-            agent_id=recovery["target_agent"], tool=step["tool"],
+            agent_id=recovery["target_agent"], tool=step["tool"], args=step["args"],
             decision=Decision(retry_result["decision"]),
             rationale=retry_result["rationale"], reviewed_by=retry_result["reviewed_by"],
             token=retry_result.get("token"), ts=time.time(),
