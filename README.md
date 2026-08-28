@@ -89,24 +89,30 @@ submission video is built around.
 
 `http://localhost:8080/` isn't a log viewer, it's a live console:
 
-- **Trip pills** are the input *and* the trigger — click a route
-  (`POST /v1/trips/run`) and the orchestrated trip starts. No terminal,
-  no separate Run button.
-- **Traveler app** panel (left) — what an employee booking the trip would
-  see, in plain language, including the recovery moment ("Recovering —
-  routing through payment_agent…").
-- **Live agent trace** panel (right) — the technical view of the same
-  run: every stage (guardrail → triage → review) as it happens, plus the
-  orchestrator's own decision as a distinct entry, not folded into a call.
-- **Transactions** table — one row per trip: input, start time, the
-  actual agent order that ran (varies by route and by what got blocked),
-  finish time, duration, status (`completed` / `aborted` / `paused_escalated`).
-- Everything above, plus the pipeline strip and stat tiles, is driven by
-  one `GET /v1/events` Server-Sent Events stream — `warden/events.py` is a
-  simple in-process pub/sub that the gateway publishes to at every stage,
-  not just the final decision. `/v1/log` and `/v1/transactions` are only
-  used once, on page load, to backfill history.
-- The audit ledger feed below is filterable and expandable, same as before.
+Three columns, two palettes on purpose (a light traveler-facing rail next
+to a dark ops console — one screen, two audiences):
+
+- **Left — Traveler app**, flush to the edge. **Trip pills are the input
+  *and* the trigger** — click a route (`POST /v1/trips/run`) and the
+  orchestrated trip starts, no terminal needed. Below the pills: what an
+  employee booking the trip would see, in plain language, including the
+  recovery moment ("Recovering — routing through payment_agent…").
+- **Center — pipeline strip + Live agent trace**: every stage (guardrail
+  → triage → review) as it happens, plus the orchestrator's own decision
+  as a distinct entry, not folded into a call.
+- **Right — stats, Transactions, audit ledger.** Transactions is one row
+  per trip: input, start time, the actual agent order that ran (varies by
+  route and by what got blocked), finish time, duration, status. **Click
+  a row** to replay that trip in the center trace panel exactly as it ran
+  — same rationale, same reviewed-by, same orchestrator decision, read
+  back from the persisted `TransactionStep` record rather than the live
+  stream. "← Back to live" returns the center panel to the current run;
+  starting a new trip does the same automatically.
+- Everything above is driven by one `GET /v1/events` Server-Sent Events
+  stream — `warden/events.py` is a simple in-process pub/sub that the
+  gateway publishes to at every stage, not just the final decision.
+  `/v1/log` and `/v1/transactions` are only used once, on page load, to
+  backfill history.
 
 ## Quickstart — local models first, cloud later
 

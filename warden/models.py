@@ -52,14 +52,31 @@ class AuditRecord(BaseModel):
 
 
 class TransactionStep(BaseModel):
-    """One executed call within a transaction — including orchestrator-
-    injected retries, which is why `agent_id` alone can't be inferred from
-    the trip plan: the plan says hotel_agent, the actual step might be the
-    orchestrator's retry through payment_agent instead."""
+    """One entry in a transaction's timeline — either an executed call, or
+    an orchestrator recovery decision. Both kinds live in the same list,
+    in the order they actually happened, so the dashboard can replay a
+    past transaction in the Live Agent Trace panel with the same fidelity
+    it had while it was actually running — not just the coarse
+    input/status/agent-order the Transactions table shows.
 
-    agent_id: str
-    tool: str
-    decision: Decision
+    `agent_id` alone can't be inferred from the trip plan: the plan says
+    hotel_agent, the actual step might be the orchestrator's retry through
+    payment_agent instead — that's the whole point of persisting this.
+    """
+
+    kind: str = "call"  # "call" | "orchestrator"
+
+    # kind == "call"
+    agent_id: str | None = None
+    tool: str | None = None
+    decision: Decision | None = None
+    rationale: str = ""
+    reviewed_by: str = ""
+
+    # kind == "orchestrator" (agent_id/tool above hold the blocked call's)
+    action: str | None = None
+    target_agent: str | None = None
+
     ts: float
 
 

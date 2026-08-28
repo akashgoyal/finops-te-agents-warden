@@ -133,8 +133,11 @@
   /* ---------- panel (trace) ---------- */
   .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; margin-bottom: 18px; }
   .panel-head { padding: 13px 16px; border-bottom: 1px solid var(--line-soft); }
+  .panel-head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
   .panel-title { font-family: var(--font-display); font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 7px; }
   .panel-sub { font-size: 11px; color: var(--ink-faint); margin-top: 1px; }
+  .back-live-btn { flex: none; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-soft); border-radius: 999px; padding: 5px 11px; font-family: var(--font-mono); font-size: 11px; transition: all .15s ease; }
+  .back-live-btn:hover { border-color: var(--accent); color: var(--ink); }
   .panel-body { padding: 14px 16px; overflow-y: auto; max-height: 420px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
   .panel-empty { color: var(--ink-faint); font-size: 12.5px; text-align: center; padding: 30px 10px; }
 
@@ -182,6 +185,11 @@
   .txn-table th { text-align: left; font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-faint); font-weight: 500; padding: 10px 14px; border-bottom: 1px solid var(--line); }
   .txn-table td { padding: 10px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
   .txn-table tr:last-child td { border-bottom: none; }
+  .txn-row { cursor: pointer; transition: background .12s ease; }
+  .txn-row:hover { background: var(--surface-2); }
+  .txn-row.selected { background: var(--accent-tint); }
+  .txn-row.selected td { position: relative; }
+  .txn-row.selected td:first-child::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent); }
   .txn-input { font-weight: 600; }
   .txn-time { font-family: var(--font-mono); color: var(--ink-faint); white-space: nowrap; }
   .agent-order { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
@@ -323,49 +331,54 @@
           </section>
 
           <div class="panel">
-            <div class="panel-head">
-              <div class="panel-title">🧭 Live agent trace <span style="color:var(--ink-faint); font-weight:400;">— what Warden actually does</span></div>
-              <div class="panel-sub">Every stage, every call, as it happens</div>
+            <div class="panel-head panel-head-row">
+              <div>
+                <div class="panel-title" x-show="!selectedTransactionId">🧭 Live agent trace <span style="color:var(--ink-faint); font-weight:400;">— what Warden actually does</span></div>
+                <div class="panel-title" x-show="selectedTransactionId">🧭 Trace — <span x-text="selectedTripLabel"></span></div>
+                <div class="panel-sub" x-show="!selectedTransactionId">Every stage, every call, as it happens</div>
+                <div class="panel-sub" x-show="selectedTransactionId">Replayed from the transaction record, not live</div>
+              </div>
+              <button class="back-live-btn" x-show="selectedTransactionId" @click="selectedTransactionId = null">← Back to live</button>
             </div>
             <div class="panel-body" x-ref="traceBody">
-              <div class="panel-empty" x-show="traceOrder.length === 0">
+              <div class="panel-empty" x-show="displaySteps.length === 0">
                 No calls in flight. The trace fills in live, stage by stage, once a run starts.
               </div>
-              <template x-for="id in traceOrder" :key="id">
-                <div class="trace-entry fade-enter" :class="trace[id].kind === 'orchestrator' ? 'orchestrator' : ''">
+              <template x-for="entry in displaySteps" :key="entry.key">
+                <div class="trace-entry fade-enter" :class="entry.kind === 'orchestrator' ? 'orchestrator' : ''">
 
-                  <template x-if="trace[id].kind === 'orchestrator'">
+                  <template x-if="entry.kind === 'orchestrator'">
                     <div>
                       <div class="orch-head">
                         🧠 Orchestrator
-                        <span class="orch-action" x-text="trace[id].action"></span>
+                        <span class="orch-action" x-text="entry.action"></span>
                       </div>
-                      <div class="orch-target" x-show="trace[id].target_agent" x-text="'→ retry via ' + trace[id].target_agent"></div>
-                      <div class="trace-rationale" x-text="trace[id].rationale"></div>
+                      <div class="orch-target" x-show="entry.target_agent" x-text="'→ retry via ' + entry.target_agent"></div>
+                      <div class="trace-rationale" x-text="entry.rationale"></div>
                     </div>
                   </template>
 
-                  <template x-if="trace[id].kind !== 'orchestrator'">
+                  <template x-if="entry.kind !== 'orchestrator'">
                     <div>
                       <div class="trace-head">
                         <div>
-                          <div class="trace-agent" x-text="trace[id].agent_id"></div>
-                          <div class="trace-tool" x-text="arrow(trace[id].tool)"></div>
+                          <div class="trace-agent" x-text="entry.agent_id"></div>
+                          <div class="trace-tool" x-text="arrow(entry.tool)"></div>
                         </div>
-                        <div class="trace-steps">
+                        <div class="trace-steps" x-show="entry.stages">
                           <template x-for="(s, i) in ['guardrail','triage','review']" :key="s">
                             <span style="display:contents">
-                              <span class="t-dot" :class="dotClass(trace[id], s)"></span>
+                              <span class="t-dot" :class="dotClass(entry, s)"></span>
                               <span class="t-dot-line" x-show="i < 2"></span>
                             </span>
                           </template>
                         </div>
                       </div>
-                      <div class="trace-decision" x-show="trace[id].decision">
-                        <span class="pill" :class="trace[id].decision" x-text="trace[id].decision"></span>
-                        <span style="font-family:var(--font-mono); font-size:10.5px; color:var(--ink-faint);" x-text="trace[id].reviewed_by"></span>
+                      <div class="trace-decision" x-show="entry.decision">
+                        <span class="pill" :class="entry.decision" x-text="entry.decision"></span>
+                        <span style="font-family:var(--font-mono); font-size:10.5px; color:var(--ink-faint);" x-text="entry.reviewed_by"></span>
                       </div>
-                      <div class="trace-rationale" x-show="trace[id].decision" x-text="trace[id].rationale"></div>
+                      <div class="trace-rationale" x-show="entry.decision" x-text="entry.rationale"></div>
                     </div>
                   </template>
 
@@ -397,7 +410,10 @@
                   <tr><td colspan="6" style="text-align:center; color:var(--ink-faint); padding:22px;">No transactions yet — click a trip pill on the left.</td></tr>
                 </template>
                 <template x-for="t in transactionsSorted" :key="t.transaction_id">
-                  <tr>
+                  <tr
+                    class="txn-row"
+                    :class="selectedTransactionId === t.transaction_id ? 'selected' : ''"
+                    @click="viewTransaction(t)">
                     <td class="txn-input" x-text="t.input.label"></td>
                     <td class="txn-time" x-text="fmtTime(t.start_ts)"></td>
                     <td>
@@ -487,6 +503,7 @@ function wardenApp() {
     lit: { intercept: false, guardrail: false, triage: false, review: false, ledger: false },
 
     transactions: [],
+    selectedTransactionId: null,
 
     records: [],
     seenHashes: new Set(),
@@ -536,6 +553,7 @@ function wardenApp() {
       if (evt.type === 'transaction_started') {
         this.running = true;
         this.activeTripId = evt.input.id;
+        this.selectedTransactionId = null; // a new run always snaps the trace panel back to live
         this.travelerSteps = [];
         this.traceOrder = [];
         this.trace = {};
@@ -629,10 +647,46 @@ function wardenApp() {
     },
 
     dotClass(entry, stage) {
-      const s = entry.stages[stage];
+      // entry.stages is only present for live calls — historical steps
+      // replayed from a transaction record don't have per-stage detail,
+      // just the final decision, so the whole dots row stays hidden for
+      // those (see x-show="entry.stages" on the row itself).
+      const s = entry.stages && entry.stages[stage];
       if (!s) return '';
       if (s.status === 'checking') return 'checking';
       return 'done';
+    },
+
+    viewTransaction(t) {
+      this.selectedTransactionId = this.selectedTransactionId === t.transaction_id ? null : t.transaction_id;
+    },
+
+    get selectedTripLabel() {
+      const t = this.transactions.find((t) => t.transaction_id === this.selectedTransactionId);
+      return t ? t.input.label : '';
+    },
+
+    get displaySteps() {
+      if (this.selectedTransactionId) {
+        const t = this.transactions.find((t) => t.transaction_id === this.selectedTransactionId);
+        if (!t) return [];
+        return t.steps.map((s, i) => ({
+          key: t.transaction_id + '-' + i,
+          kind: s.kind, agent_id: s.agent_id, tool: s.tool, decision: s.decision,
+          rationale: s.rationale, reviewed_by: s.reviewed_by,
+          action: s.action, target_agent: s.target_agent,
+          stages: null, // persisted steps only have the final decision, not per-stage progress
+        }));
+      }
+      return this.traceOrder.map((id) => {
+        const e = this.trace[id];
+        return {
+          key: id, kind: e.kind, agent_id: e.agent_id, tool: e.tool, decision: e.decision,
+          rationale: e.rationale, reviewed_by: e.reviewed_by,
+          action: e.action, target_agent: e.target_agent,
+          stages: e.stages,
+        };
+      });
     },
 
     async runTrip(presetId) {

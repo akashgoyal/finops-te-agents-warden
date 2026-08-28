@@ -53,7 +53,9 @@ def run_trip(preset_id: str) -> Transaction:
         )
         txn.steps.append(TransactionStep(
             agent_id=step["agent_id"], tool=step["tool"],
-            decision=Decision(result["decision"]), ts=time.time(),
+            decision=Decision(result["decision"]),
+            rationale=result["rationale"], reviewed_by=result["reviewed_by"],
+            ts=time.time(),
         ))
 
         if result["decision"] == "allow":
@@ -80,6 +82,12 @@ def run_trip(preset_id: str) -> Transaction:
             "rationale": recovery["rationale"], "decided_by": recovery["decided_by"],
             "blocked_agent": step["agent_id"], "tool": step["tool"],
         })
+        txn.steps.append(TransactionStep(
+            kind="orchestrator", agent_id=step["agent_id"], tool=step["tool"],
+            action=recovery["action"], target_agent=recovery["target_agent"],
+            rationale=recovery["rationale"], reviewed_by=recovery["decided_by"],
+            ts=time.time(),
+        ))
 
         if recovery["action"] == "abort":
             aborted = True
@@ -96,7 +104,9 @@ def run_trip(preset_id: str) -> Transaction:
         )
         txn.steps.append(TransactionStep(
             agent_id=recovery["target_agent"], tool=step["tool"],
-            decision=Decision(retry_result["decision"]), ts=time.time(),
+            decision=Decision(retry_result["decision"]),
+            rationale=retry_result["rationale"], reviewed_by=retry_result["reviewed_by"],
+            ts=time.time(),
         ))
         i += 1
         time.sleep(_STEP_PACING_SECONDS)
