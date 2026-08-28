@@ -110,8 +110,15 @@ def _run_adk_turn(prompt: str) -> dict:
         session_id=session.id,
         new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
     ):
-        if event.is_final_response() and event.content and event.content.parts:
-            final_text = event.content.parts[0].text or ""
+        # See the matching comment in reviewer_agent.py — a live run against
+        # the Gemini backend hit an event whose first part had no text
+        # (thinking-mode artifact), so this isn't gated on is_final_response()
+        # or parts[0] alone; it tracks the last non-empty joined text across
+        # every part of every event instead.
+        if event.content and event.content.parts:
+            text = "".join(p.text for p in event.content.parts if getattr(p, "text", None))
+            if text.strip():
+                final_text = text
 
     return json.loads(_extract_json(final_text))
 

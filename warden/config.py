@@ -28,7 +28,12 @@ class Settings(BaseSettings):
 
     google_api_key: str = ""
     gemini_model: str = "gemini-flash-latest"
-    gemma_model: str = "gemma-4-4b-it"  # used only once model_backend == "gemini"
+    # Verified against the live API (client.models.list()), not assumed —
+    # gemma-4-4b-it/12b-it aren't actually exposed on this API version,
+    # only gemma-4-26b-a4b-it and gemma-4-31b-it are. This is the smaller
+    # of the two: a mixture-of-experts model, ~4B active params despite
+    # the 26B total, so it still fits "cheapest that works" for triage.
+    gemma_model: str = "gemma-4-26b-a4b-it"  # used only once model_backend == "gemini"
 
     google_cloud_project: str = ""
     firestore_database: str = "(default)"

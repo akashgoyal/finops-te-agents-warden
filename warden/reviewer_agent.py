@@ -14,6 +14,7 @@ the call details as the message, and parse the JSON it returns.
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 from warden.config import get_settings
@@ -60,16 +61,27 @@ def review(request: ToolCallRequest, scope: AgentScope | None) -> ReviewResult:
         else f"gemini-reviewer:{settings.gemini_model}"
     )
 
-    try:
-        decision, rationale = _run_adk_turn(prompt)
-    except Exception as exc:  # ADK/model hiccup — fail closed, never fail open
-        return ReviewResult(
-            decision=Decision.ESCALATE,
-            rationale=f"Reviewer error, escalating to a human: {exc}",
-            reviewed_by=reviewer_label,
-        )
+    # Two retries beyond the first attempt: a live cloud run surfaced Gemini
+    # returning a bare 504 DEADLINE_EXCEEDED on this exact call, not a
+    # payload-size issue (the whole prompt is ~2KB) — transient server-side
+    # flakiness. Retrying the same call gives it another shot at a real
+    # ALLOW/BLOCK before we punt to a human; if all attempts fail we still
+    # fail closed to ESCALATE exactly as before.
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            decision, rationale = _run_adk_turn(prompt)
+            return ReviewResult(decision=decision, rationale=rationale, reviewed_by=reviewer_label)
+        except Exception as exc:  # ADK/model hiccup — retry, then fail closed
+            last_exc = exc
+            if attempt < 2:
+                time.sleep(1.5)
 
-    return ReviewResult(decision=decision, rationale=rationale, reviewed_by=reviewer_label)
+    return ReviewResult(
+        decision=Decision.ESCALATE,
+        rationale=f"Reviewer error, escalating to a human: {last_exc}",
+        reviewed_by=reviewer_label,
+    )
 
 
 def _resolve_model():
@@ -84,7 +96,43 @@ def _resolve_model():
         from google.adk.models.lite_llm import LiteLlm
 
         return LiteLlm(model=f"ollama_chat/{settings.ollama_review_model}", api_base=settings.ollama_host)
-    return settings.gemini_model  # ADK accepts a plain Gemini model string directly
+    return _timeout_bound_gemini_cls()(model=settings.gemini_model)
+
+
+def _timeout_bound_gemini_cls():
+    """A Gemini model wrapper that actually times out.
+
+    ADK's own Gemini class builds its api_client as
+    Client(http_options=types.HttpOptions(headers=...)) — timeout left at
+    the genai SDK default of None. Verified live, not assumed: a real trip
+    hung for 2+ minutes with the gateway process idle (0.1% CPU) and no
+    error, because the underlying HTTP call to Gemini had nothing bounding
+    it. Warden fails closed everywhere else (guardrails, review errors);
+    an unbounded network call silently breaking that guarantee is the same
+    class of bug. Subclassing just to override api_client with a timeout.
+    """
+    from functools import cached_property
+
+    from google.adk.models.google_llm import Gemini
+    from google.genai import Client, types
+
+    class _TimeoutBoundGemini(Gemini):
+        # Must stay a cached_property, same as ADK's original: a plain
+        # @property rebuilds the Client (and its aiohttp session) on every
+        # access, and ADK's Runner drives this from a fresh event loop in a
+        # dedicated thread — a churned client/session crossing that boundary
+        # surfaced as `AssertionError: self._connector is not None` deep in
+        # aiohttp on a live run. Caching once, like upstream does, fixed it.
+        @cached_property
+        def api_client(self) -> Client:
+            return Client(
+                http_options=types.HttpOptions(
+                    headers=self._tracking_headers,
+                    timeout=30_000,  # ms — fail closed instead of hanging the trip
+                )
+            )
+
+    return _TimeoutBoundGemini
 
 
 def _run_adk_turn(prompt: str) -> tuple[Decision, str]:
@@ -107,8 +155,19 @@ def _run_adk_turn(prompt: str) -> tuple[Decision, str]:
         session_id=session.id,
         new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
     ):
-        if event.is_final_response() and event.content and event.content.parts:
-            final_text = event.content.parts[0].text or ""
+        # Not gated on is_final_response(), and not just parts[0]: Gemini's
+        # thinking-mode responses can split across multiple parts on an
+        # event that doesn't get marked "final", and grabbing only the
+        # first part silently returned a thought-signature part with no
+        # text on it in production — a real empty-response bug found by
+        # actually running this against the cloud backend, not assumed.
+        # Track the last non-empty text seen across every part of every
+        # event instead; far more robust to whatever shape a given model
+        # or ADK version produces.
+        if event.content and event.content.parts:
+            text = "".join(p.text for p in event.content.parts if getattr(p, "text", None))
+            if text.strip():
+                final_text = text
 
     parsed = json.loads(_extract_json(final_text))
     return Decision(parsed["decision"].lower()), parsed["rationale"]
