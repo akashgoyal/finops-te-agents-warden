@@ -100,16 +100,22 @@ to a dark ops console — one screen, two audiences):
 - **Center — pipeline strip + Live agent trace**: every stage (guardrail
   → triage → review) as it happens, plus the orchestrator's own decision
   as a distinct entry, not folded into a call.
-- **Right — stats + Transactions**, one card per trip (not one card per
-  call — the individual-call ledger got folded into this instead of
-  living as its own long list). Each card shows the input, agent order,
-  timing, and status; **hovering** it reveals the full agent-by-agent
-  detail — decision, rationale, reviewed-by, and a copyable signed token
-  per call — read from the persisted `TransactionStep` record. **Clicking**
-  a card replays that trip in the center trace panel instead, for the
-  fuller view; "← Back to live" returns the center panel to the current
-  run, and starting a new trip does the same automatically. Filterable by
-  status (All / Completed / Aborted / Escalated).
+- **Right — stats + Transactions**, one card per trip. The agent order on
+  each card is a linked list, not plain text — one small node per executed
+  step, in the order it actually ran, colored by its own decision (green
+  allow / red block / violet escalate, diamond for an orchestrator
+  decision). **Hover one node** to see that step's content — agent, tool,
+  decision, rationale, reviewed-by, a copyable signed token — in a
+  floating popover, read from the persisted `TransactionStep` record.
+  Hover a different node, see a different agent; nothing else on the card
+  changes state, which is the point — inspect one agent at a time, not
+  the whole trip at once. **Clicking** the card (not a node) replays the
+  whole trip in the center trace panel instead, for the fuller view;
+  "← Back to live" returns to the current run, and starting a new trip
+  does the same automatically. The filter tabs (All/Allow/Block/Escalate)
+  don't hide cards — they highlight the matching nodes across every card
+  and dim the rest, so you can spot every blocked step in a session at a
+  glance without losing the trip context each one happened in.
 - Everything above is driven by one `GET /v1/events` Server-Sent Events
   stream — `warden/events.py` is a simple in-process pub/sub that the
   gateway publishes to at every stage, not just the final decision.

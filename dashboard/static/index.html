@@ -189,19 +189,27 @@
   .txn-card.selected { border-color: var(--accent); background: var(--accent-tint); }
   .txn-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
   .txn-card-label { font-weight: 600; font-size: 13.5px; }
-  .txn-card-meta { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); margin-bottom: 8px; }
-  .txn-card-details { max-height: 0; overflow: hidden; opacity: 0; transition: max-height .25s ease, opacity .2s ease, margin-top .25s ease; }
-  .txn-card:hover .txn-card-details { max-height: 360px; overflow-y: auto; opacity: 1; margin-top: 12px; }
-  .txn-step { padding: 8px 0; border-top: 1px solid var(--line-soft); font-size: 12px; }
-  .txn-step:first-child { border-top: none; }
-  .txn-step.orchestrator { background: var(--escalate-tint); border-radius: 6px; padding: 8px 8px; border-top: none; margin: 2px 0; }
+  .txn-card-meta { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); margin-bottom: 10px; }
+
+  /* the linked list: one node per executed step, in execution order */
+  .node-chain { display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
+  .chain-node { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--line); background: var(--surface-2); flex: none; cursor: pointer; transition: transform .12s ease, opacity .15s ease, box-shadow .15s ease; }
+  .chain-node:hover { transform: scale(1.35); }
+  .chain-node.allow { border-color: var(--allow); background: var(--allow-tint); }
+  .chain-node.block { border-color: var(--block); background: var(--block-tint); }
+  .chain-node.escalate { border-color: var(--escalate); background: var(--escalate-tint); }
+  .chain-node.orchestrator { border-radius: 3px; border-color: var(--escalate); background: var(--escalate); width: 11px; height: 11px; transform: rotate(45deg); }
+  .chain-node.orchestrator:hover { transform: rotate(45deg) scale(1.35); }
+  .chain-node.match { box-shadow: 0 0 0 3px var(--accent-tint), 0 0 0 1px var(--accent); }
+  .chain-node.dim { opacity: .3; }
+  .chain-line { width: 9px; height: 2px; background: var(--line); flex: none; }
+
+  /* the single shared popover — one node's content at a time */
+  .step-popover { position: fixed; transform: translateX(-50%); z-index: 60; width: 250px; background: var(--surface); border: 1px solid var(--accent); border-radius: 10px; box-shadow: var(--shadow); padding: 10px 12px; font-size: 12px; }
   .txn-step-top { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
   .txn-step-tool { font-family: var(--font-mono); color: var(--ink-faint); }
-  .txn-step-reviewer { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-faint); margin-left: auto; }
-  .txn-step-rationale { font-size: 11.5px; color: var(--ink-faint); margin-top: 3px; line-height: 1.4; }
-  .agent-order { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-  .agent-chip { font-family: var(--font-mono); font-size: 10.5px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; color: var(--ink-soft); }
-  .agent-arrow { color: var(--ink-faint); font-size: 10px; }
+  .txn-step-reviewer { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-faint); margin-top: 3px; }
+  .txn-step-rationale { font-size: 11.5px; color: var(--ink-soft); margin-top: 4px; line-height: 1.4; }
   .pill.running-status { background: var(--accent-tint); color: var(--accent); }
   .pill.completed { background: var(--allow-tint); color: var(--allow); }
   .pill.aborted { background: var(--block-tint); color: var(--block); }
@@ -388,22 +396,22 @@
           </section>
 
           <div class="feed-controls">
-            <div class="section-label">Transactions <span style="color:var(--ink-faint); font-weight:400;">— hover a card for the agent-by-agent detail</span></div>
+            <div class="section-label">Transactions <span style="color:var(--ink-faint); font-weight:400;">— hover a node for that agent's detail</span></div>
             <div class="tabs">
-              <button class="tab" :class="txnFilter === 'all' ? 'active' : ''" @click="txnFilter = 'all'" x-text="'All (' + txnStats.total + ')'"></button>
-              <button class="tab" :class="txnFilter === 'completed' ? 'active' : ''" @click="txnFilter = 'completed'" x-text="'Completed (' + txnStats.completed + ')'"></button>
-              <button class="tab" :class="txnFilter === 'aborted' ? 'active' : ''" @click="txnFilter = 'aborted'" x-text="'Aborted (' + txnStats.aborted + ')'"></button>
-              <button class="tab" :class="txnFilter === 'paused_escalated' ? 'active' : ''" @click="txnFilter = 'paused_escalated'" x-text="'Escalated (' + txnStats.paused_escalated + ')'"></button>
+              <button class="tab" :class="txnFilter === 'all' ? 'active' : ''" @click="txnFilter = 'all'" x-text="'All (' + stats.total + ')'"></button>
+              <button class="tab" :class="txnFilter === 'allow' ? 'active' : ''" @click="txnFilter = 'allow'" x-text="'Allow (' + stats.allow + ')'"></button>
+              <button class="tab" :class="txnFilter === 'block' ? 'active' : ''" @click="txnFilter = 'block'" x-text="'Block (' + stats.block + ')'"></button>
+              <button class="tab" :class="txnFilter === 'escalate' ? 'active' : ''" @click="txnFilter = 'escalate'" x-text="'Escalate (' + stats.escalate + ')'"></button>
             </div>
           </div>
 
           <div class="txn-cards">
-            <div class="empty" x-show="filteredTransactions.length === 0">
+            <div class="empty" x-show="transactionsSorted.length === 0">
               <div class="empty-icon">🛰️</div>
               <div class="empty-title">No transactions yet</div>
               <div class="empty-sub">Click a trip pill on the left, or <code>python -m demo.run_demo</code> from a terminal.</div>
             </div>
-            <template x-for="t in filteredTransactions" :key="t.transaction_id">
+            <template x-for="t in transactionsSorted" :key="t.transaction_id">
               <div class="txn-card" :class="selectedTransactionId === t.transaction_id ? 'selected' : ''" @click="viewTransaction(t)">
 
                 <div class="txn-card-top">
@@ -416,42 +424,23 @@
                     <span>→ <span x-text="fmtTime(t.finish_ts)"></span> · <span x-text="fmtDuration(t.finish_ts - t.start_ts)"></span></span>
                   </template>
                 </div>
-                <div class="agent-order">
-                  <template x-for="(a, i) in t.steps.filter(s => s.kind !== 'orchestrator').map(s => s.agent_id)" :key="i">
-                    <span style="display:contents">
-                      <span class="agent-chip" x-text="shortAgent(a)"></span>
-                      <span class="agent-arrow" x-show="i < t.steps.filter(s => s.kind !== 'orchestrator').length - 1">→</span>
-                    </span>
-                  </template>
-                </div>
 
-                <div class="txn-card-details" @click.stop>
+                <!-- The agent order as a linked list: each node is one
+                     executed step, colored by its own decision, connected
+                     in the order it actually ran. Hover *a node*, not the
+                     card, to see that step's content — the whole point
+                     being you inspect one agent at a time, not everything
+                     at once. -->
+                <div class="node-chain">
                   <template x-for="(s, i) in t.steps" :key="i">
-                    <div class="txn-step" :class="s.kind === 'orchestrator' ? 'orchestrator' : ''">
-                      <template x-if="s.kind === 'orchestrator'">
-                        <div>
-                          <div class="txn-step-top">🧠 <span class="orch-action" x-text="s.action"></span>
-                            <span class="txn-step-reviewer" x-show="s.target_agent" x-text="'→ ' + s.target_agent"></span>
-                          </div>
-                          <div class="txn-step-rationale" x-text="s.rationale"></div>
-                        </div>
-                      </template>
-                      <template x-if="s.kind !== 'orchestrator'">
-                        <div>
-                          <div class="txn-step-top">
-                            <span class="pill" :class="s.decision" x-text="s.decision"></span>
-                            <span x-text="s.agent_id"></span>
-                            <span class="txn-step-tool" x-text="arrow(s.tool)"></span>
-                            <span class="txn-step-reviewer" x-text="s.reviewed_by"></span>
-                          </div>
-                          <div class="txn-step-rationale" x-text="s.rationale"></div>
-                          <div class="kv-row" x-show="s.token">
-                            <span class="token-chip" x-text="(s.token || '').slice(0, 24) + '…'"></span>
-                            <button class="copy-btn" @click.stop="copyToken(s.token, $event)">Copy</button>
-                          </div>
-                        </div>
-                      </template>
-                    </div>
+                    <span style="display:contents">
+                      <div
+                        class="chain-node"
+                        :class="nodeClass(s)"
+                        @mouseenter="showStepPopover($event, s)"
+                        @mouseleave="scheduleHidePopover()"></div>
+                      <div class="chain-line" x-show="i < t.steps.length - 1"></div>
+                    </span>
                   </template>
                 </div>
 
@@ -465,6 +454,36 @@
 
     </div>
   </main>
+
+  <!-- Single shared popover for whichever chain-node is hovered, anywhere
+       on the page — fixed-positioned so it floats above card boundaries
+       instead of being clipped by them. -->
+  <div class="step-popover" x-show="hoveredStep" :style="'left:' + popoverPos.x + 'px; top:' + popoverPos.y + 'px;'"
+       @mouseenter="cancelHidePopover()" @mouseleave="scheduleHidePopover()">
+    <template x-if="hoveredStep && hoveredStep.kind === 'orchestrator'">
+      <div>
+        <div class="txn-step-top">🧠 <span class="orch-action" x-text="hoveredStep.action"></span>
+          <span class="txn-step-reviewer" x-show="hoveredStep.target_agent" x-text="'→ ' + hoveredStep.target_agent"></span>
+        </div>
+        <div class="txn-step-rationale" x-text="hoveredStep.rationale"></div>
+      </div>
+    </template>
+    <template x-if="hoveredStep && hoveredStep.kind !== 'orchestrator'">
+      <div>
+        <div class="txn-step-top">
+          <span class="pill" :class="hoveredStep.decision" x-text="hoveredStep.decision"></span>
+          <span x-text="hoveredStep.agent_id"></span>
+          <span class="txn-step-tool" x-text="arrow(hoveredStep.tool)"></span>
+        </div>
+        <div class="txn-step-reviewer" x-text="hoveredStep.reviewed_by"></div>
+        <div class="txn-step-rationale" x-text="hoveredStep.rationale"></div>
+        <div class="kv-row" x-show="hoveredStep.token">
+          <span class="token-chip" x-text="(hoveredStep.token || '').slice(0, 24) + '…'"></span>
+          <button class="copy-btn" @click="copyToken(hoveredStep.token, $event)">Copy</button>
+        </div>
+      </div>
+    </template>
+  </div>
 
 </div>
 
@@ -485,6 +504,10 @@ function wardenApp() {
     transactions: [],
     selectedTransactionId: null,
     txnFilter: 'all',
+
+    hoveredStep: null,
+    popoverPos: { x: 0, y: 0 },
+    hidePopoverTimer: null,
 
     records: [],
     seenHashes: new Set(),
@@ -685,14 +708,32 @@ function wardenApp() {
     get transactionsSorted() {
       return this.transactions.slice().sort((a, b) => b.start_ts - a.start_ts);
     },
-    get filteredTransactions() {
-      const list = this.transactionsSorted;
-      return this.txnFilter === 'all' ? list : list.filter((t) => t.status === this.txnFilter);
+
+    // One node = one executed step. Colored by its own decision; the
+    // active filter tab highlights matching nodes in place rather than
+    // hiding the transactions that contain them — a trip is still one
+    // card, filtering just points at which of its steps matched.
+    nodeClass(step) {
+      if (step.kind === 'orchestrator') {
+        return this.txnFilter === 'all' ? 'orchestrator' : 'orchestrator dim';
+      }
+      const matches = this.txnFilter === 'all' || step.decision === this.txnFilter;
+      return (step.decision || '') + (matches ? ' match' : ' dim');
     },
-    get txnStats() {
-      const c = { completed: 0, aborted: 0, paused_escalated: 0, running: 0 };
-      this.transactions.forEach((t) => { if (c[t.status] !== undefined) c[t.status]++; });
-      return { total: this.transactions.length, ...c };
+
+    showStepPopover(ev, step) {
+      clearTimeout(this.hidePopoverTimer);
+      const rect = ev.currentTarget.getBoundingClientRect();
+      const x = Math.min(Math.max(rect.left + rect.width / 2, 140), window.innerWidth - 140);
+      this.popoverPos = { x, y: rect.bottom + 8 };
+      this.hoveredStep = step;
+    },
+    scheduleHidePopover() {
+      clearTimeout(this.hidePopoverTimer);
+      this.hidePopoverTimer = setTimeout(() => { this.hoveredStep = null; }, 150);
+    },
+    cancelHidePopover() {
+      clearTimeout(this.hidePopoverTimer);
     },
 
     get stats() {
