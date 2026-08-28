@@ -102,6 +102,31 @@
   @media (max-width: 1180px) { .content-columns { grid-template-columns: 1fr; } }
   .col-center .panel { margin-bottom: 0; }
   .col-center .panel-body { max-height: 560px; }
+
+  .col-right {
+    /* Cool-dark, scoped the same way .sidebar scopes its light theme —
+       three zones now read as three zones: warm light (traveler) / neutral
+       dark (live trace) / cool dark (transactions + ledger), not two dark
+       panels that blend into one continuous surface. Semantic colors
+       (allow/block/escalate) stay the meanings established elsewhere;
+       only the ground and the accent shift. */
+    --bg: #10141d;
+    --surface: #171d29;
+    --surface-2: #1c2432;
+    --line: #253044;
+    --line-soft: #1f2836;
+    --ink: #e7ebf4;
+    --ink-soft: #a0acc4;
+    --ink-faint: #5f6c85;
+    --accent: #5b8def;
+    --accent-ink: #0b0f17;
+    --accent-tint: rgba(91, 141, 239, 0.16);
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 16px 40px -20px rgba(0,0,0,.75);
+
+    background: var(--bg); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 16px;
+    padding: 16px;
+  }
   /* Narrower than the old full-width strip — 2x2 reads better than a
      cramped 4-across in the right column. */
   .col-right .stats { grid-template-columns: repeat(2, 1fr); }
@@ -210,7 +235,18 @@
   .chain-line { width: 7px; height: 1px; background: var(--line); flex: none; }
 
   /* the single shared popover — one node's content at a time */
-  .step-popover { position: fixed; transform: translateX(-50%); z-index: 60; width: 250px; background: var(--surface); border: 1px solid var(--accent); border-radius: 10px; box-shadow: var(--shadow); padding: 10px 12px; font-size: 12px; }
+  .step-popover {
+    /* Same cool-dark palette as .col-right, redeclared here rather than
+       inherited — it renders outside that subtree on purpose (position:
+       fixed needs to escape the card's own overflow), so the var()
+       cascade from .col-right never reaches it. */
+    --bg: #10141d; --surface: #171d29; --surface-2: #1c2432; --line: #253044;
+    --accent: #5b8def; --accent-tint: rgba(91, 141, 239, 0.16);
+    --ink-soft: #a0acc4; --ink-faint: #5f6c85;
+    position: fixed; transform: translateX(-50%); z-index: 60; width: 250px;
+    background: var(--surface); color: var(--ink-soft); border: 1px solid var(--accent);
+    border-radius: 10px; box-shadow: var(--shadow); padding: 10px 12px; font-size: 12px;
+  }
   .txn-step-top { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
   .txn-step-tool { font-family: var(--font-mono); color: var(--ink-faint); }
   .txn-step-reviewer { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-faint); margin-top: 3px; }

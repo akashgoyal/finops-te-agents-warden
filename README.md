@@ -89,8 +89,14 @@ submission video is built around.
 
 `http://localhost:8080/` isn't a log viewer, it's a live console:
 
-Three columns, two palettes on purpose (a light traveler-facing rail next
-to a dark ops console — one screen, two audiences):
+Three columns, three palettes on purpose — each scoped the same way
+(override the CSS custom properties on the container, every component
+underneath just re-tokens automatically): a warm light traveler-facing
+rail, a neutral-dark live trace, and a cool-navy transactions panel with
+its own blue accent, so the two dark columns still read as genuinely
+different zones instead of blending into one continuous surface. Semantic
+colors (allow/block/escalate) stay consistent everywhere — only the
+ground and the accent shift per zone.
 
 - **Left — Traveler app**, flush to the edge. **Trip pills are the input
   *and* the trigger** — click a route (`POST /v1/trips/run`) and the
