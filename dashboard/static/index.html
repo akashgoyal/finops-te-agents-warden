@@ -102,6 +102,9 @@
   @media (max-width: 1180px) { .content-columns { grid-template-columns: 1fr; } }
   .col-center .panel { margin-bottom: 0; }
   .col-center .panel-body { max-height: 560px; }
+  /* Narrower than the old full-width strip — 2x2 reads better than a
+     cramped 4-across in the right column. */
+  .col-right .stats { grid-template-columns: repeat(2, 1fr); }
 
   /* ---------- top bar ---------- */
   .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -304,28 +307,21 @@
         </div>
       </header>
 
-      <section class="pipeline" aria-label="Decision pipeline">
-        <template x-for="(node, i) in ['intercept','guardrail','triage','review','ledger']" :key="node">
-          <div style="display:contents">
-            <div class="pipe-node" :class="lit[node] ? 'lit' : ''">
-              <span class="pipe-icon" x-text="{intercept:'↳',guardrail:'⛔',triage:'⚡',review:'🧭',ledger:'📒'}[node]"></span>
-              <span x-text="node"></span>
-            </div>
-            <div class="pipe-line" x-show="i < 4"></div>
-          </div>
-        </template>
-      </section>
-
-      <section class="stats">
-        <div class="stat-tile"><div class="stat-value" x-text="stats.total"></div><div class="stat-label">Calls</div></div>
-        <div class="stat-tile allow"><div class="stat-value" x-text="stats.allow"></div><div class="stat-label">Allowed</div></div>
-        <div class="stat-tile block"><div class="stat-value" x-text="stats.block"></div><div class="stat-label">Blocked</div></div>
-        <div class="stat-tile escalate"><div class="stat-value" x-text="stats.escalate"></div><div class="stat-label">Escalated</div></div>
-      </section>
-
       <div class="content-columns">
 
         <div class="col-center">
+          <section class="pipeline" aria-label="Decision pipeline">
+            <template x-for="(node, i) in ['intercept','guardrail','triage','review','ledger']" :key="node">
+              <div style="display:contents">
+                <div class="pipe-node" :class="lit[node] ? 'lit' : ''">
+                  <span class="pipe-icon" x-text="{intercept:'↳',guardrail:'⛔',triage:'⚡',review:'🧭',ledger:'📒'}[node]"></span>
+                  <span x-text="node"></span>
+                </div>
+                <div class="pipe-line" x-show="i < 4"></div>
+              </div>
+            </template>
+          </section>
+
           <div class="panel">
             <div class="panel-head">
               <div class="panel-title">🧭 Live agent trace <span style="color:var(--ink-faint); font-weight:400;">— what Warden actually does</span></div>
@@ -380,6 +376,13 @@
         </div>
 
         <div class="col-right">
+
+          <section class="stats">
+            <div class="stat-tile"><div class="stat-value" x-text="stats.total"></div><div class="stat-label">Calls</div></div>
+            <div class="stat-tile allow"><div class="stat-value" x-text="stats.allow"></div><div class="stat-label">Allowed</div></div>
+            <div class="stat-tile block"><div class="stat-value" x-text="stats.block"></div><div class="stat-label">Blocked</div></div>
+            <div class="stat-tile escalate"><div class="stat-value" x-text="stats.escalate"></div><div class="stat-label">Escalated</div></div>
+          </section>
 
           <div class="feed-controls">
             <div class="section-label">Transactions <span style="color:var(--ink-faint); font-weight:400;">— one row per trip run</span></div>
