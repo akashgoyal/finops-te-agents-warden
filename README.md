@@ -167,11 +167,14 @@ make smoke-test       # same script, now checks Gemini + Gemma-on-AI-Studio inst
 make demo              # same demo, same code path — only the model backend changed
 ```
 
-`GEMINI_MODEL=gemini-flash-latest` is a rolling alias so it shouldn't go
-stale; `GEMMA_MODEL` defaults to `gemma-4-26b-a4b-it` — verified against
-the live API's `models.list()`, not assumed (the smaller `gemma-4-4b-it`
-and `gemma-4-12b-it` sizes 404 on this API version). If `make smoke-test`
-404s on either, the id changed — check
+`GEMINI_MODEL` defaults to `gemini-3.5-flash`, pinned — not the rolling
+`gemini-flash-latest` alias. Verified live, not a style preference:
+`-latest` hit a real 504 DEADLINE_EXCEEDED on 11/11 consecutive reviewer
+calls across three Cloud Run trip runs, while the pinned version went
+4/4 clean locally. `GEMMA_MODEL` defaults to `gemma-4-26b-a4b-it` —
+also verified against the live API's `models.list()`, not assumed (the
+smaller `gemma-4-4b-it` and `gemma-4-12b-it` sizes 404 on this API
+version). If `make smoke-test` 404s on either, the id changed — check
 [ai.google.dev/gemini-api/docs/models](https://ai.google.dev/gemini-api/docs/models).
 
 ```bash
@@ -209,6 +212,31 @@ nothing while idle. Two real deploy issues worth knowing if you hit them:
   to it** — `scripts/setup_gcp.sh` grants `roles/secretmanager.secretAccessor`
   to the default compute service account explicitly; skip that step and
   the revision fails at creation with a permission-denied error.
+
+## Seeing Model Armor screen a live call
+
+The deployed URL above stays on `MODEL_BACKEND=gemini` (free-tier AI
+Studio) by design — see "Known gaps" for why. To see Model Armor
+actually screen a call, run it locally against the `vertex` backend
+instead:
+
+```bash
+export GOOGLE_CLOUD_PROJECT=your-project-id   # billing-enabled
+bash scripts/setup_model_armor.sh              # one-time: API, IAM, template
+# paste the four env vars it prints into .env (MODEL_BACKEND=vertex, ...)
+make dev
+```
+
+Then in the browser: click the **AUS → CHI** trip pill — it's the one
+route with the built-in exploit step (`hotel_agent` trying to charge a
+card directly, outside its declared scope). Watch the **Live agent
+trace** panel; when it reaches `hotel_agent → payments.charge`, the
+`BLOCK` decision and the orchestrator's retry decision right after it
+both show a `🛡️ Model Armor: warden-prompt-response` badge — the actual
+template resource name Warden screened that call through, read live
+off `ReviewResult.model_armor_template` (`warden/models.py`), not just
+"Model Armor is configured." Hovering any node in the Transactions
+panel afterward shows the same badge in its popover.
 
 ## Cost
 
