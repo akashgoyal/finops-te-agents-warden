@@ -11,7 +11,10 @@ load_dotenv()
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # "ollama" (local, free, default — get this working first) | "gemini" (cloud)
+    # "ollama" (local, free, default — get this working first) | "gemini"
+    # (cloud, Gemini Developer API / AI Studio key, free tier) | "vertex"
+    # (cloud, Vertex AI + Model Armor prompt/response screening — needs a
+    # billed project, no AI-Studio-style free tier; see .env.example)
     model_backend: str = "ollama"
 
     ollama_host: str = "http://localhost:11434"
@@ -41,6 +44,31 @@ class Settings(BaseSettings):
     google_cloud_project: str = ""
     firestore_database: str = "(default)"
 
+    # Only used when model_backend == "vertex". Deliberately separate from
+    # gemini_model: verified live via client.models.list() against this
+    # project's Vertex AI catalog that gemini-3.5-flash (and every other
+    # 3.x model) 404s here — "Publisher model ... was not found or your
+    # project does not have access to it" — while gemini-2.5-flash works.
+    # AI Studio (the "gemini" backend, gemini_model above) has broader
+    # default access and is what's actually deployed; this is a proven,
+    # working proof-of-concept for the Vertex AI + Model Armor path, not
+    # the primary submission path — see README.
+    vertex_gemini_model: str = "gemini-2.5-flash"
+
+    # Only used when model_backend == "vertex". us-central1 is one of Model
+    # Armor's four supported Vertex AI integration regions as of this
+    # writing (us-central1, us-east4, us-west1, europe-west4) — matches
+    # where Firestore/Cloud Run are already provisioned in this project.
+    vertex_location: str = "us-central1"
+    # Resource names of pre-created Model Armor templates, e.g.
+    # "projects/P/locations/us-central1/templates/warden-prompt". Created
+    # once via scripts/setup_model_armor.sh, not by application code —
+    # Model Armor has no free tier, so this stays opt-in and unset by
+    # default even when model_backend == "vertex" (empty means "call
+    # Vertex AI's Gemini without Model Armor screening attached").
+    model_armor_prompt_template: str = ""
+    model_armor_response_template: str = ""
+
     warden_secret_key: str = "change-me-to-a-random-string"
     # Deterministic, zero-model fallback — for tests/CI, not for seeing it work.
     warden_stub_mode: bool = False
@@ -53,7 +81,13 @@ class Settings(BaseSettings):
             return True
         # Never call the Gemini backend without a key — fail closed to stub,
         # not to a crash. Ollama needs no key, so this doesn't touch it.
-        return self.model_backend == "gemini" and not self.google_api_key
+        if self.model_backend == "gemini" and not self.google_api_key:
+            return True
+        # Vertex AI auths via ADC (no API key), but still needs a project —
+        # same fail-closed reasoning as the Gemini branch above.
+        if self.model_backend == "vertex" and not self.google_cloud_project:
+            return True
+        return False
 
 
 @lru_cache

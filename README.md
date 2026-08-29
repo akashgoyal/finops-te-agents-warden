@@ -253,7 +253,7 @@ demo/
   fleet_agents.py           the five demo agents + their mock tools
   run_demo.py                 CLI runner — same orchestrated trip the dashboard's pills trigger
 dashboard/static/     live console — trip pills, traveler view, agent trace, transactions, ledger
-scripts/               GCP setup + Cloud Run deploy
+scripts/               GCP setup + Cloud Run deploy + optional Model Armor setup
 tests/                  stub-mode tests, no network calls
 ```
 
@@ -262,10 +262,28 @@ tests/                  stub-mode tests, no network calls
 - Policy is a single Markdown doc, not multi-tenant or versioned.
 - The reviewer agent's JSON parsing is best-effort — good enough for a
   hackathon demo, not hardened against a model that ignores the format.
-- GCP's managed Agent Identity / Model Armor (Vertex AI Agent Builder) would
-  replace the hand-rolled `auth_token.py` in a real deployment — left out
-  here specifically because it needs billed Vertex AI Agent Builder usage,
-  which wasn't available for this build.
+- **Model Armor** (Vertex AI's prompt/response screening) is wired up as a
+  third `MODEL_BACKEND=vertex` option — additive, doesn't touch the
+  `ollama`/`gemini` paths — and verified working end-to-end locally:
+  `scripts/setup_model_armor.sh` provisions the template/IAM/APIs, and
+  the reviewer, orchestrator, and triage calls all pass a real Model
+  Armor template through `generate_content_config`. It's a demonstrated
+  proof-of-concept, not the deployed default, for two concrete reasons
+  found by actually trying it: Vertex AI's Gemini calls are billed from
+  the first token (no AI-Studio-style free tier), and this project's
+  Vertex AI catalog only has access up to `gemini-2.5-flash` — every
+  `gemini-3.x` model 404s here (`client.models.list()` shows them, but
+  `generate_content` doesn't — a Model Garden entitlement gap, not a
+  code issue), so it can't independently satisfy the hackathon's
+  "Gemini 3.5+" requirement the way the deployed `gemini` (AI Studio)
+  backend already does.
+- **Agent Identity** (Vertex AI Agent Engine's cryptographic per-agent
+  identity) was scoped out after checking what it actually requires: it
+  means deploying agents onto Agent Engine's own managed runtime, not
+  something layered onto a self-hosted app — a different hosting model
+  from Warden's Cloud Run deployment, not a toggle. `auth_token.py`'s
+  hand-rolled signed tokens stay as the stand-in for what that would
+  provide.
 - `gemma2:2b` turned out to be genuinely too small for the reviewer role,
   not just noisy — as the fleet grew to 5 agents / 5 policy sections, it
   aborted 3 real orchestrated trips in a row, hallucinating blocks on

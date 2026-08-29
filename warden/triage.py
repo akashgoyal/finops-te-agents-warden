@@ -48,6 +48,16 @@ def quick_check(request: ToolCallRequest, scope: AgentScope | None) -> str:
 
     if settings.model_backend == "ollama":
         text = _ollama_generate(settings.ollama_triage_model, prompt)
+    elif settings.model_backend == "vertex":
+        # Not settings.gemma_model here: Gemma's Vertex AI catalog entry
+        # (gemma-4-26b-a4b-it-maas) only serves from the "global" endpoint,
+        # verified live — 400 FAILED_PRECONDITION when called from
+        # us-central1. Model Armor's Vertex integration is region-locked
+        # to 4 specific regions and doesn't support "global", so sharing
+        # one client/location across triage and review means triage rides
+        # the same accessible Gemini model as review on this backend
+        # instead of a separate Gemma call.
+        text = _vertex_generate(settings.vertex_gemini_model, prompt)
     else:
         text = _gemini_generate(settings.gemma_model, prompt)
 
@@ -72,6 +82,22 @@ def _gemini_generate(model: str, prompt: str) -> str:
 
     settings = get_settings()
     client = genai.Client(api_key=settings.google_api_key)
+    response = client.models.generate_content(model=model, contents=prompt)
+    return response.text or ""
+
+
+def _vertex_generate(model: str, prompt: str) -> str:
+    """Same Gemma call, authenticated against Vertex AI (ADC) instead of
+    the Gemini Developer API (api_key) — for MODEL_BACKEND=vertex parity.
+    No Model Armor here on purpose: that's scoped to the reviewer/
+    orchestrator's judgment calls (warden/reviewer_agent.py), not this
+    fast SAFE/REVIEW pre-filter — anything triage waves through that
+    matters still gets a second look there when it's genuinely ambiguous.
+    """
+    from google import genai
+
+    settings = get_settings()
+    client = genai.Client(vertexai=True, project=settings.google_cloud_project, location=settings.vertex_location)
     response = client.models.generate_content(model=model, contents=prompt)
     return response.text or ""
 

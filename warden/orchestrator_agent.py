@@ -24,7 +24,7 @@ import json
 
 from warden.config import get_settings
 from warden.models import ToolCallRequest
-from warden.reviewer_agent import _extract_json, _resolve_model
+from warden.reviewer_agent import _extract_json, _generate_content_config, _resolve_model
 
 _INSTRUCTION = """You are the orchestrator for a corporate Travel & Expense agent
 fleet. A call was just blocked because the calling agent wasn't scoped for
@@ -81,12 +81,16 @@ def decide_recovery(*, blocked: ToolCallRequest, block_rationale: str, candidate
     if action == "retry" and target not in candidates:
         target = candidates[0]  # never trust an invented target — constrain to what's real
 
-    model_label = settings.ollama_review_model if settings.model_backend == "ollama" else settings.gemini_model
+    model_label = {
+        "ollama": settings.ollama_review_model,
+        "vertex": settings.vertex_gemini_model,
+    }.get(settings.model_backend, settings.gemini_model)
+    backend_prefix = "vertex-orchestrator-agent" if settings.model_backend == "vertex" else "orchestrator-agent"
     return {
         "action": action,
         "target_agent": target if action == "retry" else None,
         "rationale": decision.get("rationale", ""),
-        "decided_by": f"orchestrator-agent:{model_label}",
+        "decided_by": f"{backend_prefix}:{model_label}",
     }
 
 
@@ -108,6 +112,7 @@ def _run_adk_turn(prompt: str) -> dict:
         # LlmAgent.planner, not generate_content_config directly (ADK
         # raises a pydantic validation error otherwise).
         planner=BuiltInPlanner(thinking_config=types.ThinkingConfig(thinking_budget=0)),
+        generate_content_config=_generate_content_config(),
     )
     runner = InMemoryRunner(agent=agent, app_name="warden")
     session = runner.session_service.create_session_sync(app_name="warden", user_id="orchestrator")

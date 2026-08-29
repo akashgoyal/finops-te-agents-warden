@@ -55,11 +55,10 @@ def review(request: ToolCallRequest, scope: AgentScope | None) -> ReviewResult:
         f"stated_reason={request.reason!r}"
     )
 
-    reviewer_label = (
-        f"ollama-reviewer:{settings.ollama_review_model}"
-        if settings.model_backend == "ollama"
-        else f"gemini-reviewer:{settings.gemini_model}"
-    )
+    reviewer_label = {
+        "ollama": f"ollama-reviewer:{settings.ollama_review_model}",
+        "vertex": f"vertex-reviewer:{settings.vertex_gemini_model}",
+    }.get(settings.model_backend, f"gemini-reviewer:{settings.gemini_model}")
 
     # Four retries beyond the first attempt, with backoff: a live cloud run
     # surfaced Gemini returning a bare 504 DEADLINE_EXCEEDED on this exact
@@ -94,16 +93,21 @@ def _resolve_model():
     Local dev (default): Ollama, via ADK's LiteLLM wrapper — no API key,
     no cloud call, no rate limit. Once that's proven out, flip
     MODEL_BACKEND=gemini in .env and nothing else in this file changes.
+    MODEL_BACKEND=vertex is the same Gemini model, just authenticated
+    against Vertex AI (ADC, not an API key) instead of the Gemini
+    Developer API — the only path Model Armor screening can attach to.
     """
     settings = get_settings()
     if settings.model_backend == "ollama":
         from google.adk.models.lite_llm import LiteLlm
 
         return LiteLlm(model=f"ollama_chat/{settings.ollama_review_model}", api_base=settings.ollama_host)
+    if settings.model_backend == "vertex":
+        return _timeout_bound_gemini_cls(vertex=True)(model=settings.vertex_gemini_model)
     return _timeout_bound_gemini_cls()(model=settings.gemini_model)
 
 
-def _timeout_bound_gemini_cls():
+def _timeout_bound_gemini_cls(vertex: bool = False):
     """A Gemini model wrapper that actually times out.
 
     ADK's own Gemini class builds its api_client as
@@ -114,6 +118,11 @@ def _timeout_bound_gemini_cls():
     it. Warden fails closed everywhere else (guardrails, review errors);
     an unbounded network call silently breaking that guarantee is the same
     class of bug. Subclassing just to override api_client with a timeout.
+
+    vertex=True additionally switches the client to Vertex AI mode
+    (project + location, ADC auth) instead of the Gemini Developer API
+    (api_key auth) — required for Model Armor, which only integrates with
+    Vertex AI's generateContent, not the AI Studio endpoint.
     """
     from functools import cached_property
 
@@ -129,14 +138,52 @@ def _timeout_bound_gemini_cls():
         # aiohttp on a live run. Caching once, like upstream does, fixed it.
         @cached_property
         def api_client(self) -> Client:
-            return Client(
-                http_options=types.HttpOptions(
+            kwargs: dict = {
+                "http_options": types.HttpOptions(
                     headers=self._tracking_headers,
                     timeout=30_000,  # ms — fail closed instead of hanging the trip
                 )
-            )
+            }
+            if vertex:
+                settings = get_settings()
+                kwargs.update(
+                    vertexai=True,
+                    project=settings.google_cloud_project,
+                    location=settings.vertex_location,
+                )
+            return Client(**kwargs)
 
     return _TimeoutBoundGemini
+
+
+def _generate_content_config():
+    """Model Armor prompt/response screening — opt-in, Vertex AI only.
+
+    Returns None (i.e. "no special config") unless MODEL_BACKEND=vertex
+    AND both template resource names are set — so the ollama and gemini
+    (AI Studio, free tier) paths are completely unaffected either way.
+
+    ADK's Agent rejects a handful of specific fields on generate_content_
+    config outright via a pydantic validator (thinking_config, tools,
+    system_instruction, response_schema — see the planner comment in
+    _run_adk_turn below, and llm_agent.py's own validator). model_armor_
+    config isn't one of them — checked against the installed ADK version
+    before relying on this, not assumed.
+    """
+    settings = get_settings()
+    if settings.model_backend != "vertex":
+        return None
+    if not (settings.model_armor_prompt_template and settings.model_armor_response_template):
+        return None
+
+    from google.genai import types
+
+    return types.GenerateContentConfig(
+        model_armor_config=types.ModelArmorConfig(
+            prompt_template_name=settings.model_armor_prompt_template,
+            response_template_name=settings.model_armor_response_template,
+        )
+    )
 
 
 def _run_adk_turn(prompt: str) -> tuple[Decision, str]:
@@ -161,6 +208,7 @@ def _run_adk_turn(prompt: str) -> tuple[Decision, str]:
         # LlmAgent.planner, not generate_content_config directly (that
         # raises a pydantic validation error).
         planner=BuiltInPlanner(thinking_config=types.ThinkingConfig(thinking_budget=0)),
+        generate_content_config=_generate_content_config(),
     )
     runner = InMemoryRunner(agent=agent, app_name="warden")
     session = runner.session_service.create_session_sync(app_name="warden", user_id="gateway")
