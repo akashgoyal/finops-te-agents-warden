@@ -1,0 +1,647 @@
+<meta charset="utf-8">
+<title>Warden Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #eef1f6;
+    --surface: #ffffff;
+    --surface-2: #e2e7f0;
+    --ink: #17202e;
+    --ink-soft: #4a5568;
+    --ink-faint: #8a93a6;
+    --line: #c7cfdd;
+    --line-strong: #a9b3c6;
+
+    --accent: #b05f16;
+    --accent-tint: rgba(176, 95, 22, 0.12);
+
+    --allow: #2a7364;
+    --allow-tint: rgba(42, 115, 100, 0.11);
+    --block: #ab332d;
+    --block-tint: rgba(171, 51, 45, 0.11);
+    --escalate: #5f47b8;
+    --escalate-tint: rgba(95, 71, 184, 0.11);
+    --infra: #35619c;
+    --infra-tint: rgba(53, 97, 156, 0.11);
+
+    --font-display: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1420;
+      --surface: #131c2b;
+      --surface-2: #1a2536;
+      --ink: #e8eaf0;
+      --ink-soft: #a9b2c4;
+      --ink-faint: #6c768c;
+      --line: #2a3549;
+      --line-strong: #3c4a63;
+
+      --accent: #e3984e;
+      --accent-tint: rgba(227, 152, 78, 0.15);
+
+      --allow: #55b6a0;
+      --allow-tint: rgba(85, 182, 160, 0.15);
+      --block: #e37f78;
+      --block-tint: rgba(227, 127, 120, 0.15);
+      --escalate: #ac9af2;
+      --escalate-tint: rgba(172, 154, 242, 0.16);
+      --infra: #79a6e6;
+      --infra-tint: rgba(121, 166, 230, 0.15);
+
+      color-scheme: dark;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0d1420;
+    --surface: #131c2b;
+    --surface-2: #1a2536;
+    --ink: #e8eaf0;
+    --ink-soft: #a9b2c4;
+    --ink-faint: #6c768c;
+    --line: #2a3549;
+    --line-strong: #3c4a63;
+
+    --accent: #e3984e;
+    --accent-tint: rgba(227, 152, 78, 0.15);
+
+    --allow: #55b6a0;
+    --allow-tint: rgba(85, 182, 160, 0.15);
+    --block: #e37f78;
+    --block-tint: rgba(227, 127, 120, 0.15);
+    --escalate: #ac9af2;
+    --escalate-tint: rgba(172, 154, 242, 0.16);
+    --infra: #79a6e6;
+    --infra-tint: rgba(121, 166, 230, 0.15);
+
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html { text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-display);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 56px 28px 80px;
+  }
+
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  /* ---------- header ---------- */
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .eyebrow .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--allow); flex: none; }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(34px, 5vw, 46px);
+    letter-spacing: -0.015em;
+    margin: 10px 0 0;
+    text-wrap: balance;
+  }
+
+  .dek {
+    margin: 14px 0 0;
+    max-width: 62ch;
+    color: var(--ink-soft);
+    font-size: 16.5px;
+    line-height: 1.6;
+  }
+
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 24px;
+  }
+  .meta-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ink-soft);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 6px 11px;
+    text-decoration: none;
+  }
+  .meta-chip svg { flex: none; opacity: 0.75; }
+  .meta-chip:hover { border-color: var(--line-strong); color: var(--ink); }
+
+  /* ---------- section scaffolding ---------- */
+
+  section { margin-top: 64px; }
+
+  .section-head { max-width: 74ch; }
+  .section-num {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+  }
+  h2 {
+    font-size: 23px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    margin: 6px 0 0;
+    text-wrap: balance;
+  }
+  .section-note {
+    margin: 10px 0 0;
+    color: var(--ink-soft);
+    font-size: 14.5px;
+    line-height: 1.65;
+    max-width: 72ch;
+  }
+  .section-note code { font-family: var(--font-mono); font-size: 0.92em; }
+
+  /* ---------- figures ---------- */
+
+  figure { margin: 28px 0 0; }
+  .fig-frame {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px;
+    overflow-x: auto;
+  }
+  .fig-frame svg { display: block; margin: 0 auto; max-width: 100%; height: auto; min-width: 720px; }
+
+  figcaption {
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--ink-faint);
+    line-height: 1.6;
+    max-width: 72ch;
+  }
+  figcaption b { color: var(--ink-soft); font-weight: 600; }
+
+  /* diagram text defaults (inherited via currentColor for strokes) */
+  .dg-node-title { font-family: var(--font-display); font-weight: 600; font-size: 13.5px; }
+  .dg-node-sub { font-family: var(--font-mono); font-size: 10.5px; }
+  .dg-arrow-label { font-family: var(--font-mono); font-size: 10.5px; }
+  .dg-lane-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+  /* ---------- legend ---------- */
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 22px;
+    margin-top: 18px;
+    padding: 14px 16px;
+    background: var(--surface-2);
+    border-radius: 10px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+  }
+  .legend-item { display: inline-flex; align-items: center; gap: 7px; }
+  .legend-swatch { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+
+  /* ---------- stack strip ---------- */
+
+  .stack-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-top: 22px;
+  }
+  .stack-cell {
+    background: var(--surface);
+    padding: 16px 18px;
+  }
+  .stack-cell .k {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .stack-cell .v {
+    margin-top: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .stack-cell .d {
+    margin-top: 4px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    line-height: 1.5;
+  }
+
+  /* ---------- footer ---------- */
+
+  footer {
+    margin-top: 72px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ink-faint);
+  }
+
+  @media (max-width: 640px) {
+    .page { padding: 40px 18px 60px; }
+    section { margin-top: 48px; }
+  }
+</style>
+
+<div class="page">
+
+  <div class="eyebrow"><span class="dot"></span> All Things Agentic Hackathon &middot; Fortified Enterprise Fleet</div>
+  <h1>Warden — system architecture</h1>
+  <p class="dek">
+    An authorization gateway for a Travel &amp; Expense agent fleet. Every tool call
+    an agent makes is intercepted, checked against spend policy by a
+    deterministic guardrail and a tiered Gemma&nbsp;→&nbsp;Gemini review, then
+    allowed, blocked, or escalated — before it executes, not after Finance
+    finds out from the statement.
+  </p>
+
+  <div class="meta-row">
+    <a class="meta-chip" href="https://github.com/akashgoyal/finops-te-agents-warden" target="_blank" rel="noopener">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      finops-te-agents-warden
+    </a>
+    <a class="meta-chip" href="https://warden-330594494974.us-central1.run.app" target="_blank" rel="noopener">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6.6"/><path d="M1.5 8h13M8 1.5c2 2 3 4.2 3 6.5s-1 4.5-3 6.5c-2-2-3-4.2-3-6.5s1-4.5 3-6.5Z"/></svg>
+      live deployment
+    </a>
+    <span class="meta-chip"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 1.5 1.5 5v6L8 14.5 14.5 11V5L8 1.5Z"/><path d="M1.5 5 8 8.5 14.5 5M8 8.5v6"/></svg> Cloud Run &middot; Firestore &middot; Secret Manager</span>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- FIGURE 1 — request flow                                       -->
+  <!-- ============================================================ -->
+
+  <section>
+    <div class="section-head">
+      <div class="section-num">01 — Request flow</div>
+      <h2>One call, three ways to be cleared — and one way to recover</h2>
+      <p class="section-note">
+        Most calls never reach a model at all. A hard numeric rule is checked
+        in plain code first; a cheap Gemma pass clears the plainly-obvious
+        rest for free; only genuinely ambiguous calls reach the ADK reviewer.
+        When the reviewer blocks a call, the trip doesn't just stop — an
+        orchestrator agent decides whether to retry it through the agent
+        actually scoped for it, live, per call.
+      </p>
+    </div>
+
+    <figure>
+      <div class="fig-frame">
+        <svg viewBox="0 0 1500 620" role="img" aria-label="Warden request flow: a fleet agent's tool call passes through the Gateway on Cloud Run, a deterministic guardrail, Gemma triage, and an ADK reviewer. Guardrail limit violations and reviewer escalations route to a human-review Escalate step. Reviewer blocks route to an Orchestrator, which either retries the call through the correctly-scoped agent — looping back into the Gateway — or aborts the trip. Every outcome is signed if allowed and written to a hash-chained Firestore ledger, which feeds the live dashboard.">
+          <defs>
+            <marker id="arrow-ink" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+            <marker id="arrow-allow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--allow)"/>
+            </marker>
+            <marker id="arrow-block" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--block)"/>
+            </marker>
+            <marker id="arrow-escalate" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--escalate)"/>
+            </marker>
+            <marker id="arrow-accent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+            </marker>
+          </defs>
+
+          <!-- ===== lane labels ===== -->
+          <text x="30" y="26" class="dg-lane-label" fill="var(--ink-faint)">Pipeline — every call, in order</text>
+          <text x="480" y="236" class="dg-lane-label" fill="var(--ink-faint)">Fallout — block / escalate handling</text>
+          <text x="900" y="446" class="dg-lane-label" fill="var(--ink-faint)">Record + surface</text>
+
+          <!-- ===== lane 1 : main pipeline ===== -->
+
+          <!-- fleet agents cluster -->
+          <rect x="30" y="40" width="200" height="76" rx="9" fill="var(--surface-2)" stroke="var(--line-strong)"/>
+          <text x="130" y="60" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Fleet agents</text>
+          <g class="dg-node-sub" fill="var(--ink-faint)">
+            <text x="46" y="78">search &middot; booking</text>
+            <text x="46" y="92">hotel &middot; cab</text>
+            <text x="46" y="106">payment</text>
+          </g>
+
+          <line x1="230" y1="78" x2="266" y2="78" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow-ink)"/>
+          <text x="248" y="68" text-anchor="middle" class="dg-arrow-label" fill="var(--ink-faint)">call</text>
+
+          <!-- gateway -->
+          <rect x="270" y="40" width="160" height="76" rx="9" fill="var(--infra-tint)" stroke="var(--infra)"/>
+          <text x="350" y="63" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Gateway</text>
+          <text x="350" y="80" text-anchor="middle" class="dg-node-sub" fill="var(--ink-soft)">gateway.py</text>
+          <text x="350" y="102" text-anchor="middle" class="dg-node-sub" fill="var(--infra)">Cloud Run</text>
+
+          <line x1="430" y1="78" x2="476" y2="78" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow-ink)"/>
+
+          <!-- guardrail -->
+          <rect x="480" y="40" width="160" height="76" rx="9" fill="var(--surface-2)" stroke="var(--line-strong)"/>
+          <text x="560" y="63" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Guardrail</text>
+          <text x="560" y="80" text-anchor="middle" class="dg-node-sub" fill="var(--ink-soft)">plain code</text>
+          <text x="560" y="98" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">hard $ cap</text>
+
+          <line x1="640" y1="78" x2="686" y2="78" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow-ink)"/>
+          <text x="663" y="68" text-anchor="middle" class="dg-arrow-label" fill="var(--ink-faint)">ok</text>
+
+          <!-- triage -->
+          <rect x="690" y="40" width="160" height="76" rx="9" fill="var(--surface-2)" stroke="var(--line-strong)"/>
+          <text x="770" y="63" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Triage</text>
+          <text x="770" y="80" text-anchor="middle" class="dg-node-sub" fill="var(--ink-soft)">Gemma</text>
+          <text x="770" y="98" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">free pass</text>
+
+          <line x1="850" y1="78" x2="896" y2="78" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow-ink)"/>
+          <text x="873" y="68" text-anchor="middle" class="dg-arrow-label" fill="var(--ink-faint)">ambiguous</text>
+
+          <!-- reviewer -->
+          <rect x="900" y="40" width="170" height="76" rx="9" fill="var(--surface-2)" stroke="var(--line-strong)"/>
+          <text x="985" y="63" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Reviewer</text>
+          <text x="985" y="80" text-anchor="middle" class="dg-node-sub" fill="var(--ink-soft)">ADK agent</text>
+          <text x="985" y="98" text-anchor="middle" class="dg-node-sub" fill="var(--infra)">Gemini / Vertex AI</text>
+
+          <line x1="1070" y1="78" x2="1116" y2="78" stroke="var(--allow)" stroke-width="1.5" marker-end="url(#arrow-allow)"/>
+          <text x="1093" y="68" text-anchor="middle" class="dg-arrow-label" fill="var(--allow)">allow</text>
+
+          <!-- sign token -->
+          <rect x="1120" y="40" width="160" height="76" rx="9" fill="var(--allow-tint)" stroke="var(--allow)"/>
+          <text x="1200" y="63" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Sign token</text>
+          <text x="1200" y="80" text-anchor="middle" class="dg-node-sub" fill="var(--ink-soft)">auth_token.py</text>
+          <text x="1200" y="98" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">task-bounded</text>
+
+          <!-- triage "safe" fast path -> ledger (bent, teal) -->
+          <path d="M 770 116 V 400 H 1000" fill="none" stroke="var(--allow)" stroke-width="1.5" stroke-dasharray="1 0" marker-end="url(#arrow-allow)"/>
+          <rect x="720" y="386" width="80" height="16" fill="var(--bg)"/>
+          <text x="770" y="398" text-anchor="middle" class="dg-arrow-label" fill="var(--allow)">safe · allow</text>
+
+          <!-- sign token -> ledger -->
+          <path d="M 1200 116 V 430 H 1105" fill="none" stroke="var(--allow)" stroke-width="1.5" marker-end="url(#arrow-allow)"/>
+
+          <!-- ===== lane 2 : fallout ===== -->
+
+          <!-- guardrail -> escalate -->
+          <line x1="560" y1="116" x2="560" y2="246" stroke="var(--escalate)" stroke-width="1.5" marker-end="url(#arrow-escalate)"/>
+          <rect x="500" y="170" width="118" height="16" fill="var(--bg)"/>
+          <text x="560" y="182" text-anchor="middle" class="dg-arrow-label" fill="var(--escalate)">cap exceeded</text>
+
+          <!-- reviewer -> escalate (bent) -->
+          <path d="M 940 116 V 160 H 615 V 250" fill="none" stroke="var(--escalate)" stroke-width="1.5" marker-end="url(#arrow-escalate)"/>
+          <rect x="835" y="152" width="70" height="16" fill="var(--bg)"/>
+          <text x="870" y="164" text-anchor="middle" class="dg-arrow-label" fill="var(--escalate)">escalate</text>
+
+          <!-- escalate box -->
+          <rect x="480" y="250" width="170" height="76" rx="9" fill="var(--escalate-tint)" stroke="var(--escalate)"/>
+          <text x="565" y="273" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Escalate</text>
+          <text x="565" y="290" text-anchor="middle" class="dg-node-sub" fill="var(--ink-soft)">human review</text>
+          <text x="565" y="308" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">no token issued</text>
+
+          <!-- escalate -> ledger (bent) -->
+          <path d="M 650 300 H 760 V 470 H 895" fill="none" stroke="var(--escalate)" stroke-width="1.5" marker-end="url(#arrow-escalate)"/>
+
+          <!-- reviewer -> orchestrator -->
+          <line x1="985" y1="116" x2="985" y2="246" stroke="var(--block)" stroke-width="1.5" marker-end="url(#arrow-block)"/>
+          <rect x="945" y="170" width="80" height="16" fill="var(--bg)"/>
+          <text x="985" y="182" text-anchor="middle" class="dg-arrow-label" fill="var(--block)">block</text>
+
+          <!-- orchestrator box -->
+          <rect x="900" y="250" width="170" height="76" rx="9" fill="var(--surface-2)" stroke="var(--line-strong)"/>
+          <text x="985" y="273" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Orchestrator</text>
+          <text x="985" y="290" text-anchor="middle" class="dg-node-sub" fill="var(--ink-soft)">orchestrator_agent.py</text>
+          <text x="985" y="308" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">retry or abort</text>
+
+          <!-- orchestrator -> abort -->
+          <line x1="1070" y1="288" x2="1116" y2="288" stroke="var(--block)" stroke-width="1.5" marker-end="url(#arrow-block)"/>
+          <text x="1093" y="278" text-anchor="middle" class="dg-arrow-label" fill="var(--block)">abort</text>
+
+          <rect x="1120" y="250" width="160" height="76" rx="9" fill="var(--block-tint)" stroke="var(--block)"/>
+          <text x="1200" y="273" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Abort</text>
+          <text x="1200" y="290" text-anchor="middle" class="dg-node-sub" fill="var(--ink-soft)">trip stops</text>
+          <text x="1200" y="308" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">nothing after runs</text>
+
+          <!-- abort -> ledger -->
+          <path d="M 1200 326 V 410 H 1050 V 470 H 1085" fill="none" stroke="var(--block)" stroke-width="1.5" marker-end="url(#arrow-block)"/>
+
+          <!-- orchestrator -> gateway (retry loop back). Routed above the
+               escalate/orchestrator row at y=200 (clear of every box) so it
+               only ever crosses other LINES, never passes through a box. -->
+          <path d="M 985 250 V 200 H 350 V 116" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arrow-accent)"/>
+          <rect x="655" y="184" width="150" height="32" fill="var(--bg)"/>
+          <text x="730" y="196" text-anchor="middle" class="dg-arrow-label" fill="var(--accent)">retry via</text>
+          <text x="730" y="209" text-anchor="middle" class="dg-arrow-label" fill="var(--accent)">correctly-scoped agent</text>
+
+          <!-- ===== lane 3 : record + surface ===== -->
+
+          <rect x="900" y="460" width="200" height="76" rx="9" fill="var(--infra-tint)" stroke="var(--infra)"/>
+          <text x="1000" y="483" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Ledger</text>
+          <text x="1000" y="500" text-anchor="middle" class="dg-node-sub" fill="var(--ink-soft)">ledger.py</text>
+          <text x="1000" y="521" text-anchor="middle" class="dg-node-sub" fill="var(--infra)">Firestore &middot; hash-chained</text>
+
+          <line x1="1100" y1="498" x2="1146" y2="498" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow-ink)"/>
+          <text x="1123" y="488" text-anchor="middle" class="dg-arrow-label" fill="var(--ink-faint)">SSE</text>
+
+          <rect x="1150" y="460" width="200" height="76" rx="9" fill="var(--surface-2)" stroke="var(--line-strong)"/>
+          <text x="1250" y="483" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Dashboard</text>
+          <text x="1250" y="500" text-anchor="middle" class="dg-node-sub" fill="var(--ink-soft)">live console</text>
+          <text x="1250" y="521" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">GET /v1/events</text>
+
+          <!-- secret manager, feeding gateway -->
+          <rect x="30" y="460" width="200" height="70" rx="9" fill="var(--surface)" stroke="var(--line)" stroke-dasharray="3 3"/>
+          <text x="130" y="483" text-anchor="middle" class="dg-node-title" fill="var(--ink-soft)">Secret Manager</text>
+          <text x="130" y="500" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">API key &middot; token secret</text>
+          <text x="130" y="516" text-anchor="middle" class="dg-node-sub" fill="var(--infra)">mounted at deploy</text>
+          <path d="M 130 460 V 400 H 350 V 116" fill="none" stroke="var(--infra)" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#arrow-ink)"/>
+        </svg>
+      </div>
+      <figcaption>
+        <b>Reading the diagram:</b> color marks the outcome, not the stage —
+        <span style="color:var(--allow)">teal</span> is allowed, <span style="color:var(--block)">coral</span> is blocked or aborted,
+        <span style="color:var(--escalate)">violet</span> is escalated to a human, and <span style="color:var(--accent)">dashed amber</span> is the
+        orchestrator's live retry, back into the Gateway through whichever
+        agent is actually scoped for the call. Registry lookups (agent scope)
+        and the ledger both read/write the same Firestore project; omitted
+        above to keep the call path itself legible.
+      </figcaption>
+    </figure>
+
+    <div class="legend">
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--allow)"></span> Allowed — token signed</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--block)"></span> Blocked / aborted</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--escalate)"></span> Escalated — human review</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--accent)"></span> Orchestrator retry (in flight)</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--infra)"></span> Google Cloud service</span>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- FIGURE 2 — backend swap                                        -->
+  <!-- ============================================================ -->
+
+  <section>
+    <div class="section-head">
+      <div class="section-num">02 — Model backend</div>
+      <h2>Same agent code, three swappable backends</h2>
+      <p class="section-note">
+        The Reviewer and Orchestrator are defined once — same ADK
+        <code>Agent</code>, same instruction. <code>MODEL_BACKEND</code> in
+        <code>.env</code> decides which model actually answers, with no
+        other code change. Proven locally before ever touching the cloud.
+      </p>
+    </div>
+
+    <figure>
+      <div class="fig-frame">
+        <svg viewBox="0 0 1020 300" role="img" aria-label="One ADK agent definition fans out to three interchangeable model backends, selected by the MODEL_BACKEND setting: Ollama running fully local and free; Gemini on the Gemini Developer API / AI Studio, the deployed default on the free tier; and Vertex AI with Model Armor prompt and response screening attached, an opt-in proof of concept with metered billing.">
+          <defs>
+            <marker id="arrow-ink-2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <rect x="30" y="112" width="230" height="80" rx="9" fill="var(--surface-2)" stroke="var(--line-strong)"/>
+          <text x="145" y="140" text-anchor="middle" class="dg-node-title" fill="var(--ink)">ADK Agent</text>
+          <text x="145" y="158" text-anchor="middle" class="dg-node-sub" fill="var(--ink-soft)">reviewer_agent.py</text>
+          <text x="145" y="176" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">one instruction, unchanged</text>
+
+          <path d="M 260 152 H 320 V 42 H 380" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow-ink-2)"/>
+          <path d="M 260 152 H 380" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow-ink-2)"/>
+          <path d="M 260 152 H 320 V 262 H 380" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow-ink-2)"/>
+          <text x="300" y="100" text-anchor="middle" class="dg-arrow-label" fill="var(--ink-faint)">MODEL_BACKEND</text>
+
+          <!-- ollama -->
+          <rect x="384" y="4" width="300" height="76" rx="9" fill="var(--surface-2)" stroke="var(--line-strong)"/>
+          <text x="400" y="27" class="dg-node-title" fill="var(--ink)">ollama</text>
+          <text x="400" y="45" class="dg-node-sub" fill="var(--ink-soft)">LiteLLM &middot; llama3.1:8b</text>
+          <text x="400" y="63" class="dg-node-sub" fill="var(--ink-faint)">fully local &middot; zero cost &middot; no key</text>
+
+          <!-- gemini (deployed) -->
+          <rect x="384" y="114" width="300" height="76" rx="9" fill="var(--allow-tint)" stroke="var(--allow)"/>
+          <text x="400" y="137" class="dg-node-title" fill="var(--ink)">gemini</text>
+          <text x="400" y="155" class="dg-node-sub" fill="var(--ink-soft)">AI Studio &middot; gemini-3.5-flash</text>
+          <text x="400" y="173" class="dg-node-sub" fill="var(--allow)">deployed default &middot; free tier</text>
+
+          <!-- vertex -->
+          <rect x="384" y="224" width="300" height="76" rx="9" fill="var(--infra-tint)" stroke="var(--infra)"/>
+          <text x="400" y="247" class="dg-node-title" fill="var(--ink)">vertex</text>
+          <text x="400" y="265" class="dg-node-sub" fill="var(--ink-soft)">Vertex AI &middot; gemini-2.5-flash</text>
+          <text x="400" y="283" class="dg-node-sub" fill="var(--infra)">+ Model Armor &middot; opt-in &middot; metered</text>
+
+          <!-- model armor detail off vertex -->
+          <path d="M 684 262 H 730" fill="none" stroke="var(--infra)" stroke-width="1.3" marker-end="url(#arrow-ink-2)"/>
+          <rect x="734" y="224" width="260" height="76" rx="9" fill="var(--surface)" stroke="var(--infra)" stroke-dasharray="3 3"/>
+          <text x="750" y="247" class="dg-node-title" fill="var(--ink)">Model Armor</text>
+          <text x="750" y="265" class="dg-node-sub" fill="var(--ink-soft)">prompt + response templates</text>
+          <text x="750" y="283" class="dg-node-sub" fill="var(--ink-faint)">setup_model_armor.sh</text>
+        </svg>
+      </div>
+      <figcaption>
+        <b>Why three, not one:</b> <span style="color:var(--ink-soft)">ollama</span> is where every
+        decision path got proven before any cloud cost; <span style="color:var(--allow)">gemini</span> is
+        what's actually deployed, chosen because Vertex AI's Gemini calls
+        are billed from the first token while AI Studio has a genuine free
+        tier; <span style="color:var(--infra)">vertex</span> is a verified, working proof-of-concept for
+        Model Armor screening, kept opt-in rather than the default.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- STACK STRIP                                                    -->
+  <!-- ============================================================ -->
+
+  <section>
+    <div class="section-head">
+      <div class="section-num">03 — Stack</div>
+      <h2>What's actually load-bearing</h2>
+    </div>
+
+    <div class="stack-grid">
+      <div class="stack-cell">
+        <div class="k">Compute</div>
+        <div class="v">Cloud Run</div>
+        <div class="d">FastAPI gateway, scaled to zero between demo runs</div>
+      </div>
+      <div class="stack-cell">
+        <div class="k">Model — reasoning</div>
+        <div class="v">Gemini 3.5 Flash</div>
+        <div class="d">Reviewer + Orchestrator, via ADK, deployed on the Gemini Developer API</div>
+      </div>
+      <div class="stack-cell">
+        <div class="k">Model — triage</div>
+        <div class="v">Gemma</div>
+        <div class="d">Cheap first pass; most calls never reach a paid model</div>
+      </div>
+      <div class="stack-cell">
+        <div class="k">Framework</div>
+        <div class="v">Google ADK</div>
+        <div class="d">Agent + Runner for the Reviewer and Orchestrator</div>
+      </div>
+      <div class="stack-cell">
+        <div class="k">Storage</div>
+        <div class="v">Firestore</div>
+        <div class="d">Agent registry and the hash-chained audit ledger</div>
+      </div>
+      <div class="stack-cell">
+        <div class="k">Secrets</div>
+        <div class="v">Secret Manager</div>
+        <div class="d">API key and token-signing secret, mounted at deploy</div>
+      </div>
+      <div class="stack-cell">
+        <div class="k">Security — opt-in</div>
+        <div class="v">Model Armor</div>
+        <div class="d">Prompt/response screening on the Vertex AI backend</div>
+      </div>
+      <div class="stack-cell">
+        <div class="k">Build</div>
+        <div class="v">Cloud Build</div>
+        <div class="d">Source deploy &middot; pinned deps, no backtracking</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Warden &middot; authorization gateway for a T&amp;E agent fleet</span>
+    <span>github.com/akashgoyal/finops-te-agents-warden</span>
+  </footer>
+
+</div>

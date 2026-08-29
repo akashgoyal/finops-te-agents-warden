@@ -14,6 +14,13 @@ track). Runs entirely on Google's free tier — see [Cost](#cost) below.
 Cloud Run, backed by real Gemini/Gemma (not stub mode), Firestore-backed
 registry and ledger. Click a trip pill to trigger a real orchestrated run.
 
+**Architecture diagram**: [`docs/architecture.html`](docs/architecture.html)
+— open it in a browser (or view it live at
+https://claude.ai/code/artifact/18caf45b-93c6-4c8d-8986-4b51f3af1b0c) for
+the full request-flow diagram, the backend-swap comparison, and the
+Google Cloud stack breakdown. The Mermaid flowchart just below is the
+quick version.
+
 ## Why
 
 Corporate T&E is where "let an agent handle it" meets real money and real
