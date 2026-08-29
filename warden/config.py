@@ -27,7 +27,10 @@ class Settings(BaseSettings):
     ollama_review_model: str = "llama3.1:8b"
 
     google_api_key: str = ""
-    gemini_model: str = "gemini-flash-latest"
+    # Pinned, not gemini-flash-latest — see .env.example for why (the
+    # rolling alias hit 504 DEADLINE_EXCEEDED on 11/11 live reviewer calls;
+    # this pinned version hit 0 across repeated local verification).
+    gemini_model: str = "gemini-3.5-flash"
     # Verified against the live API (client.models.list()), not assumed —
     # gemma-4-4b-it/12b-it aren't actually exposed on this API version,
     # only gemma-4-26b-a4b-it and gemma-4-31b-it are. This is the smaller
