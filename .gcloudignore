@@ -1,0 +1,19 @@
+# Keeps the Cloud Build source upload small and fast. Without this file the
+# deploy uploads and rebuilds against the entire repo including .venv/ (630MB
+# local virtualenv) — that's what caused a live deploy to hit
+# DEADLINE_EXCEEDED after ~2900 dots of "Building Container...." Verified by
+# checking `du -sh .venv` (630M) against the total repo size (631M) after the
+# failure, not assumed.
+.git/
+.gitignore
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.DS_Store
+*.log
+dist/
+build/
+.env
