@@ -10,6 +10,10 @@ after Finance finds out from the statement.
 Built for the **All Things Agentic Hackathon** (Fortified Enterprise Fleet
 track). Runs entirely on Google's free tier — see [Cost](#cost) below.
 
+**Live**: https://warden-330594494974.us-central1.run.app — deployed on
+Cloud Run, backed by real Gemini/Gemma (not stub mode), Firestore-backed
+registry and ledger. Click a trip pill to trigger a real orchestrated run.
+
 ## Why
 
 Corporate T&E is where "let an agent handle it" meets real money and real
@@ -164,8 +168,10 @@ make demo              # same demo, same code path — only the model backend ch
 ```
 
 `GEMINI_MODEL=gemini-flash-latest` is a rolling alias so it shouldn't go
-stale; `GEMMA_MODEL` defaults to `gemma-4-4b-it`. If `make smoke-test` 404s
-on either, the id changed — check
+stale; `GEMMA_MODEL` defaults to `gemma-4-26b-a4b-it` — verified against
+the live API's `models.list()`, not assumed (the smaller `gemma-4-4b-it`
+and `gemma-4-12b-it` sizes 404 on this API version). If `make smoke-test`
+404s on either, the id changed — check
 [ai.google.dev/gemini-api/docs/models](https://ai.google.dev/gemini-api/docs/models).
 
 ```bash
@@ -183,7 +189,26 @@ python -m scripts.seed_registry     # writes the demo fleet's scopes into Firest
 ```
 
 `scripts/deploy_cloud_run.sh` deploys with `--min-instances=0`, so it costs
-nothing while idle.
+nothing while idle. Two real deploy issues worth knowing if you hit them:
+
+- **No `.dockerignore`/`.gcloudignore` means the build context includes
+  `.venv/`** — 630MB of nothing Cloud Build needs. `.gcloudignore` in this
+  repo excludes it; without it, uploads are slow and the build can time
+  out entirely on a large enough venv.
+- **Unpinned `google-genai`/`google-adk` in requirements.txt made pip's
+  resolver backtrack through 60+ package versions hunting for a
+  compatible combination** — a live build timed out at 25-30 minutes
+  before this was pinned to known-working versions; a fresh install
+  resolves in under 2 minutes pinned.
+- **Don't hit `/healthz` as your health-check path on a `*.run.app`
+  domain** — verified live that Google's front end intercepts that exact
+  literal path before it reaches the container (every other path,
+  including genuinely nonexistent ones, passes through fine and gets
+  logged). Warden's probe lives at `/health` for this reason.
+- **Creating a secret doesn't grant the Cloud Run service account access
+  to it** — `scripts/setup_gcp.sh` grants `roles/secretmanager.secretAccessor`
+  to the default compute service account explicitly; skip that step and
+  the revision fails at creation with a permission-denied error.
 
 ## Cost
 
@@ -237,10 +262,10 @@ tests/                  stub-mode tests, no network calls
 - Policy is a single Markdown doc, not multi-tenant or versioned.
 - The reviewer agent's JSON parsing is best-effort — good enough for a
   hackathon demo, not hardened against a model that ignores the format.
-- GEAP's managed Agent Identity / Model Armor would replace the hand-rolled
-  `auth_token.py` in a real deployment — left out here specifically because
-  it likely needs billed Vertex AI Agent Builder usage, which wasn't
-  available for this build.
+- GCP's managed Agent Identity / Model Armor (Vertex AI Agent Builder) would
+  replace the hand-rolled `auth_token.py` in a real deployment — left out
+  here specifically because it needs billed Vertex AI Agent Builder usage,
+  which wasn't available for this build.
 - `gemma2:2b` turned out to be genuinely too small for the reviewer role,
   not just noisy — as the fleet grew to 5 agents / 5 policy sections, it
   aborted 3 real orchestrated trips in a row, hallucinating blocks on
