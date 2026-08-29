@@ -20,7 +20,12 @@ gcloud run deploy "$SERVICE_NAME" \
   --source=. \
   --min-instances=0 \
   --max-instances=1 \
-  --memory=512Mi \
+  # 1Gi, not 512Mi: verified live, the heavy dependency footprint (ADK,
+  # aiplatform, litellm, tokenizers, grpc) plus an actual in-flight
+  # ADK Agent Runner OOM'd a 512Mi container mid-trip at 532MiB used —
+  # Cloud Run killed and restarted the instance, silently wiping the
+  # in-memory transaction the trip was mid-way through.
+  --memory=1Gi \
   --cpu=1 \
   --no-cpu-throttling \
   --allow-unauthenticated \
