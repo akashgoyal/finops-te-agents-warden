@@ -14,17 +14,21 @@ SERVICE_NAME="${SERVICE_NAME:-warden}"
 # real trip sat at 0/9 steps through 8 polls (~80s) with the container's
 # own logs showing nothing but the polling GETs themselves, because the
 # background task never got CPU time between requests to make progress.
+# Memory is 1Gi, not 512Mi: verified live, the heavy dependency footprint
+# (ADK, aiplatform, litellm, tokenizers, grpc) plus an actual in-flight ADK
+# Agent Runner OOM'd a 512Mi container mid-trip at 532MiB used — Cloud Run
+# killed and restarted the instance, silently wiping the in-memory
+# transaction the trip was mid-way through. (A comment used to sit inline
+# in the middle of this backslash-continued command, right here — bash
+# joins backslash-continued lines before comment-stripping, so it silently
+# truncated the whole gcloud invocation after --max-instances=1 on a live
+# deploy. Comments belong above the command, never between its `\` lines.)
 gcloud run deploy "$SERVICE_NAME" \
   --project="$PROJECT_ID" \
   --region="$REGION" \
   --source=. \
   --min-instances=0 \
   --max-instances=1 \
-  # 1Gi, not 512Mi: verified live, the heavy dependency footprint (ADK,
-  # aiplatform, litellm, tokenizers, grpc) plus an actual in-flight
-  # ADK Agent Runner OOM'd a 512Mi container mid-trip at 532MiB used —
-  # Cloud Run killed and restarted the instance, silently wiping the
-  # in-memory transaction the trip was mid-way through.
   --memory=1Gi \
   --cpu=1 \
   --no-cpu-throttling \
