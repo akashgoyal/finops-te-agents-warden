@@ -59,6 +59,7 @@ def review(request: ToolCallRequest, scope: AgentScope | None) -> ReviewResult:
         "ollama": f"ollama-reviewer:{settings.ollama_review_model}",
         "vertex": f"vertex-reviewer:{settings.vertex_gemini_model}",
     }.get(settings.model_backend, f"gemini-reviewer:{settings.gemini_model}")
+    armor_template = _active_model_armor_template()
 
     # Four retries beyond the first attempt, with backoff: a live cloud run
     # surfaced Gemini returning a bare 504 DEADLINE_EXCEEDED on this exact
@@ -74,7 +75,10 @@ def review(request: ToolCallRequest, scope: AgentScope | None) -> ReviewResult:
     for attempt in range(5):
         try:
             decision, rationale = _run_adk_turn(prompt)
-            return ReviewResult(decision=decision, rationale=rationale, reviewed_by=reviewer_label)
+            return ReviewResult(
+                decision=decision, rationale=rationale, reviewed_by=reviewer_label,
+                model_armor_template=armor_template,
+            )
         except Exception as exc:  # ADK/model hiccup — retry, then fail closed
             last_exc = exc
             if attempt < 4:
@@ -84,6 +88,7 @@ def review(request: ToolCallRequest, scope: AgentScope | None) -> ReviewResult:
         decision=Decision.ESCALATE,
         rationale=f"Reviewer error, escalating to a human: {last_exc}",
         reviewed_by=reviewer_label,
+        model_armor_template=armor_template,
     )
 
 
@@ -156,12 +161,25 @@ def _timeout_bound_gemini_cls(vertex: bool = False):
     return _TimeoutBoundGemini
 
 
+def _active_model_armor_template() -> str | None:
+    """The template resource name if Model Armor is actually attached to
+    this call, else None. Opt-in, Vertex AI only: MODEL_BACKEND=vertex
+    AND both template resource names configured — otherwise None, so the
+    ollama and gemini (AI Studio, free tier) paths are unaffected either
+    way. Shared by _generate_content_config (what to actually send) and
+    review()/decide_recovery (what to report to the dashboard) so both
+    stay in sync by construction rather than duplicated conditions.
+    """
+    settings = get_settings()
+    if settings.model_backend != "vertex":
+        return None
+    if not (settings.model_armor_prompt_template and settings.model_armor_response_template):
+        return None
+    return settings.model_armor_prompt_template
+
+
 def _generate_content_config():
     """Model Armor prompt/response screening — opt-in, Vertex AI only.
-
-    Returns None (i.e. "no special config") unless MODEL_BACKEND=vertex
-    AND both template resource names are set — so the ollama and gemini
-    (AI Studio, free tier) paths are completely unaffected either way.
 
     ADK's Agent rejects a handful of specific fields on generate_content_
     config outright via a pydantic validator (thinking_config, tools,
@@ -171,9 +189,7 @@ def _generate_content_config():
     before relying on this, not assumed.
     """
     settings = get_settings()
-    if settings.model_backend != "vertex":
-        return None
-    if not (settings.model_armor_prompt_template and settings.model_armor_response_template):
+    if not _active_model_armor_template():
         return None
 
     from google.genai import types

@@ -36,6 +36,12 @@ class ReviewResult(BaseModel):
     decision: Decision
     rationale: str
     reviewed_by: str  # "gemma-triage" | "gemini-reviewer" | "stub"
+    # Set only when MODEL_BACKEND=vertex actually attached a Model Armor
+    # template to this call (see warden/reviewer_agent.py's
+    # _generate_content_config) — None on every other backend/path, so the
+    # UI can show a distinct "screened by Model Armor" badge instead of
+    # parsing it out of reviewed_by.
+    model_armor_template: str | None = None
 
 
 class AuditRecord(BaseModel):
@@ -46,6 +52,7 @@ class AuditRecord(BaseModel):
     decision: Decision
     rationale: str
     reviewed_by: str
+    model_armor_template: str | None = None
     token: str | None = None
     prev_hash: str = ""
     hash: str = ""
@@ -73,6 +80,7 @@ class TransactionStep(BaseModel):
     decision: Decision | None = None
     rationale: str = ""
     reviewed_by: str = ""
+    model_armor_template: str | None = None
     token: str | None = None
 
     # kind == "orchestrator" (agent_id/tool above hold the blocked call's)

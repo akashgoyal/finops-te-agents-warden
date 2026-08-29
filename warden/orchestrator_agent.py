@@ -24,7 +24,7 @@ import json
 
 from warden.config import get_settings
 from warden.models import ToolCallRequest
-from warden.reviewer_agent import _extract_json, _generate_content_config, _resolve_model
+from warden.reviewer_agent import _active_model_armor_template, _extract_json, _generate_content_config, _resolve_model
 
 _INSTRUCTION = """You are the orchestrator for a corporate Travel & Expense agent
 fleet. A call was just blocked because the calling agent wasn't scoped for
@@ -49,10 +49,13 @@ def decide_recovery(*, blocked: ToolCallRequest, block_rationale: str, candidate
             "target_agent": None,
             "rationale": f"No agent in the fleet is scoped for '{blocked.tool}' — nothing to retry through.",
             "decided_by": "orchestrator-fallback",
+            "model_armor_template": None,
         }
 
     if settings.stub_mode:
         return _stub_decide(blocked, candidates)
+
+    armor_template = _active_model_armor_template()
 
     prompt = (
         f"BLOCKED CALL: agent={blocked.agent_id!r} tool={blocked.tool!r} "
@@ -72,6 +75,7 @@ def decide_recovery(*, blocked: ToolCallRequest, block_rationale: str, candidate
             "target_agent": candidates[0],
             "rationale": f"Orchestrator model error ({exc}); retrying via the scoped candidate.",
             "decided_by": "orchestrator-fallback",
+            "model_armor_template": armor_template,
         }
 
     action = decision.get("action")
@@ -91,6 +95,7 @@ def decide_recovery(*, blocked: ToolCallRequest, block_rationale: str, candidate
         "target_agent": target if action == "retry" else None,
         "rationale": decision.get("rationale", ""),
         "decided_by": f"{backend_prefix}:{model_label}",
+        "model_armor_template": armor_template,
     }
 
 
@@ -142,4 +147,5 @@ def _stub_decide(blocked: ToolCallRequest, candidates: list[str]) -> dict:
         "target_agent": candidates[0],
         "rationale": f"Stub: retrying via {candidates[0]}, the only agent scoped for '{blocked.tool}'.",
         "decided_by": "stub",
+        "model_armor_template": None,
     }

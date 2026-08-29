@@ -55,6 +55,7 @@ def run_trip(preset_id: str) -> Transaction:
             agent_id=step["agent_id"], tool=step["tool"], args=step["args"],
             decision=Decision(result["decision"]),
             rationale=result["rationale"], reviewed_by=result["reviewed_by"],
+            model_armor_template=result.get("model_armor_template"),
             token=result.get("token"), ts=time.time(),
         ))
 
@@ -80,12 +81,14 @@ def run_trip(preset_id: str) -> Transaction:
             "type": "orchestrator_decision", "transaction_id": txn.transaction_id,
             "action": recovery["action"], "target_agent": recovery["target_agent"],
             "rationale": recovery["rationale"], "decided_by": recovery["decided_by"],
+            "model_armor_template": recovery.get("model_armor_template"),
             "blocked_agent": step["agent_id"], "tool": step["tool"],
         })
         txn.steps.append(TransactionStep(
             kind="orchestrator", agent_id=step["agent_id"], tool=step["tool"], args=step["args"],
             action=recovery["action"], target_agent=recovery["target_agent"],
             rationale=recovery["rationale"], reviewed_by=recovery["decided_by"],
+            model_armor_template=recovery.get("model_armor_template"),
             ts=time.time(),
         ))
 
@@ -106,6 +109,7 @@ def run_trip(preset_id: str) -> Transaction:
             agent_id=recovery["target_agent"], tool=step["tool"], args=step["args"],
             decision=Decision(retry_result["decision"]),
             rationale=retry_result["rationale"], reviewed_by=retry_result["reviewed_by"],
+            model_armor_template=retry_result.get("model_armor_template"),
             token=retry_result.get("token"), ts=time.time(),
         ))
         i += 1

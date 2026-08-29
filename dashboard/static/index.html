@@ -288,6 +288,7 @@
   .copy-btn { background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-soft); border-radius: 6px; padding: 3px 9px; font-size: 11px; font-family: var(--font-mono); }
   .copy-btn:hover { border-color: var(--accent); color: var(--ink); }
   .copy-btn.copied { border-color: var(--allow); color: var(--allow); }
+  .armor-badge { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 10.5px; background: var(--allow-tint); color: var(--allow); border-radius: 6px; padding: 3px 8px; margin-top: 4px; }
 
   .fade-enter { animation: slideIn .35s cubic-bezier(.2,.7,.3,1); }
   @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
@@ -394,6 +395,9 @@
                         <span class="orch-action" x-text="entry.action"></span>
                       </div>
                       <div class="orch-target" x-show="entry.target_agent" x-text="'→ retry via ' + entry.target_agent"></div>
+                      <div class="armor-badge" x-show="entry.model_armor_template">
+                        🛡️ Model Armor: <span x-text="shortArmorTemplate(entry.model_armor_template)"></span>
+                      </div>
                       <div class="trace-rationale" x-text="entry.rationale"></div>
                     </div>
                   </template>
@@ -417,6 +421,9 @@
                       <div class="trace-decision" x-show="entry.decision">
                         <span class="pill" :class="entry.decision" x-text="entry.decision"></span>
                         <span style="font-family:var(--font-mono); font-size:10.5px; color:var(--ink-faint);" x-text="entry.reviewed_by"></span>
+                      </div>
+                      <div class="armor-badge" x-show="entry.model_armor_template">
+                        🛡️ Model Armor: <span x-text="shortArmorTemplate(entry.model_armor_template)"></span>
                       </div>
                       <div class="trace-rationale" x-show="entry.decision" x-text="entry.rationale"></div>
                     </div>
@@ -508,6 +515,9 @@
         <div class="txn-step-top">🧠 <span class="orch-action" x-text="hoveredStep.action"></span>
           <span class="txn-step-reviewer" x-show="hoveredStep.target_agent" x-text="'→ ' + hoveredStep.target_agent"></span>
         </div>
+        <div class="armor-badge" x-show="hoveredStep.model_armor_template">
+          🛡️ Model Armor: <span x-text="shortArmorTemplate(hoveredStep.model_armor_template)"></span>
+        </div>
         <div class="txn-step-args" x-show="formatArgs(hoveredStep.args)" x-text="formatArgs(hoveredStep.args)"></div>
         <div class="txn-step-rationale" x-text="hoveredStep.rationale"></div>
       </div>
@@ -520,6 +530,9 @@
           <span class="txn-step-tool" x-text="arrow(hoveredStep.tool)"></span>
         </div>
         <div class="txn-step-reviewer" x-text="hoveredStep.reviewed_by"></div>
+        <div class="armor-badge" x-show="hoveredStep.model_armor_template">
+          🛡️ Model Armor: <span x-text="shortArmorTemplate(hoveredStep.model_armor_template)"></span>
+        </div>
         <div class="txn-step-args" x-show="formatArgs(hoveredStep.args)" x-text="formatArgs(hoveredStep.args)"></div>
         <div class="txn-step-rationale" x-text="hoveredStep.rationale"></div>
         <div class="kv-row" x-show="hoveredStep.token">
@@ -627,6 +640,7 @@ function wardenApp() {
         this.trace[oid] = {
           kind: 'orchestrator', action: evt.action, target_agent: evt.target_agent,
           rationale: evt.rationale, decided_by: evt.decided_by,
+          model_armor_template: evt.model_armor_template,
         };
         this.traceOrder.push(oid);
         this.$nextTick(() => this.scrollToBottom(this.$refs.traceBody));
@@ -663,6 +677,7 @@ function wardenApp() {
         entry.decision = evt.decision;
         entry.rationale = evt.rationale;
         entry.reviewed_by = evt.reviewed_by;
+        entry.model_armor_template = evt.model_armor_template;
         const step = this.travelerSteps.find((s) => s.call_id === id);
         if (step) step.status = evt.decision;
 
@@ -678,7 +693,7 @@ function wardenApp() {
             txn.steps.push({
               kind: 'call', agent_id: entry.agent_id, tool: entry.tool, args: entry.args || {},
               decision: evt.decision, rationale: evt.rationale, reviewed_by: evt.reviewed_by,
-              token: evt.token, ts: evt.ts,
+              model_armor_template: evt.model_armor_template, token: evt.token, ts: evt.ts,
             });
           }
         }
@@ -698,6 +713,8 @@ function wardenApp() {
     scrollToBottom(el) { if (el) el.scrollTop = el.scrollHeight; },
     arrow(tool) { return '→ ' + tool; },
     shortAgent(agentId) { return (agentId || '').replace('_agent', ''); },
+    // "projects/P/locations/L/templates/warden-prompt-response" -> "warden-prompt-response"
+    shortArmorTemplate(name) { return (name || '').split('/').pop(); },
     formatArgs(args) {
       if (!args || Object.keys(args).length === 0) return '';
       return Object.entries(args).map(([k, v]) => `${k}: ${v}`).join('  ·  ');
@@ -740,6 +757,7 @@ function wardenApp() {
           key: t.transaction_id + '-' + i,
           kind: s.kind, agent_id: s.agent_id, tool: s.tool, decision: s.decision,
           rationale: s.rationale, reviewed_by: s.reviewed_by,
+          model_armor_template: s.model_armor_template,
           action: s.action, target_agent: s.target_agent,
           stages: null, // persisted steps only have the final decision, not per-stage progress
         }));
@@ -749,6 +767,7 @@ function wardenApp() {
         return {
           key: id, kind: e.kind, agent_id: e.agent_id, tool: e.tool, decision: e.decision,
           rationale: e.rationale, reviewed_by: e.reviewed_by,
+          model_armor_template: e.model_armor_template,
           action: e.action, target_agent: e.target_agent,
           stages: e.stages,
         };

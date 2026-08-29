@@ -36,7 +36,7 @@ from warden.guardrails import check_hard_limits
 from warden.ledger import get_ledger
 from warden.models import AuditRecord, Decision, ReviewResult, ToolCallRequest
 from warden.registry import InMemoryRegistry, get_registry
-from warden.reviewer_agent import review
+from warden.reviewer_agent import _active_model_armor_template, review
 from warden.transactions import get_store
 
 app = FastAPI(title="Warden", version="0.1.0")
@@ -128,11 +128,13 @@ def _process_call(
             events.publish({
                 "call_id": call_id, "transaction_id": transaction_id, "stage": "review",
                 "status": "checking", "model": review_model,
+                "model_armor_template": _active_model_armor_template(),
             })
             result = review(request, scope)
             events.publish({
                 "call_id": call_id, "transaction_id": transaction_id, "stage": "review",
                 "status": "done", "reviewed_by": result.reviewed_by,
+                "model_armor_template": result.model_armor_template,
             })
 
     token = None
@@ -145,6 +147,7 @@ def _process_call(
         "call_id": call_id, "transaction_id": transaction_id, "stage": "decision",
         "decision": result.decision.value, "rationale": result.rationale,
         "reviewed_by": result.reviewed_by, "token": token,
+        "model_armor_template": result.model_armor_template,
     })
 
     record = AuditRecord(
@@ -154,6 +157,7 @@ def _process_call(
         decision=result.decision,
         rationale=result.rationale,
         reviewed_by=result.reviewed_by,
+        model_armor_template=result.model_armor_template,
         token=token,
     )
     _ledger.append(record)
@@ -169,6 +173,7 @@ def _process_call(
         "decision": result.decision.value,
         "rationale": result.rationale,
         "reviewed_by": result.reviewed_by,
+        "model_armor_template": result.model_armor_template,
         "token": token,
     }
 
