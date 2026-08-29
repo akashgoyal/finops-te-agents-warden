@@ -61,21 +61,25 @@ def review(request: ToolCallRequest, scope: AgentScope | None) -> ReviewResult:
         else f"gemini-reviewer:{settings.gemini_model}"
     )
 
-    # Two retries beyond the first attempt: a live cloud run surfaced Gemini
-    # returning a bare 504 DEADLINE_EXCEEDED on this exact call, not a
-    # payload-size issue (the whole prompt is ~2KB) — transient server-side
-    # flakiness. Retrying the same call gives it another shot at a real
-    # ALLOW/BLOCK before we punt to a human; if all attempts fail we still
-    # fail closed to ESCALATE exactly as before.
+    # Four retries beyond the first attempt, with backoff: a live cloud run
+    # surfaced Gemini returning a bare 504 DEADLINE_EXCEEDED on this exact
+    # call — not a payload-size issue (the whole prompt is ~2KB), and not
+    # purely a thinking-mode issue either (thinking_config on the agent
+    # already disables that; disabling it improved but didn't eliminate
+    # this — a run with it disabled still hit 504 on 2/3 attempts,
+    # consistent with free-tier API rate limiting/latency under the call
+    # volume this session generated, not a per-call fluke). Retrying with
+    # backoff gives the API room to recover; if every attempt fails we
+    # still fail closed to ESCALATE exactly as before.
     last_exc: Exception | None = None
-    for attempt in range(3):
+    for attempt in range(5):
         try:
             decision, rationale = _run_adk_turn(prompt)
             return ReviewResult(decision=decision, rationale=rationale, reviewed_by=reviewer_label)
         except Exception as exc:  # ADK/model hiccup — retry, then fail closed
             last_exc = exc
-            if attempt < 2:
-                time.sleep(1.5)
+            if attempt < 4:
+                time.sleep(2 * (attempt + 1))
 
     return ReviewResult(
         decision=Decision.ESCALATE,
@@ -137,6 +141,7 @@ def _timeout_bound_gemini_cls():
 
 def _run_adk_turn(prompt: str) -> tuple[Decision, str]:
     from google.adk.agents import Agent
+    from google.adk.planners import BuiltInPlanner
     from google.adk.runners import InMemoryRunner
     from google.genai import types
 
@@ -145,6 +150,17 @@ def _run_adk_turn(prompt: str) -> tuple[Decision, str]:
         model=_resolve_model(),
         description="Reviews agent tool calls against Warden's fleet policy.",
         instruction=_INSTRUCTION,
+        # thinking_budget=0 disables extended "thinking" entirely. Verified
+        # live: this ALLOW/BLOCK/ESCALATE call from a ~2KB prompt hit a real
+        # 504 DEADLINE_EXCEEDED from Gemini's own server 6/6 times across
+        # two full trip runs on Cloud Run (and once locally) — the model
+        # spending too long in thinking mode on what's really a small
+        # structured judgment call, hitting its own server-side deadline.
+        # This is a classification decision, not something that benefits
+        # from open-ended reasoning. ADK requires this go through
+        # LlmAgent.planner, not generate_content_config directly (that
+        # raises a pydantic validation error).
+        planner=BuiltInPlanner(thinking_config=types.ThinkingConfig(thinking_budget=0)),
     )
     runner = InMemoryRunner(agent=agent, app_name="warden")
     session = runner.session_service.create_session_sync(app_name="warden", user_id="gateway")

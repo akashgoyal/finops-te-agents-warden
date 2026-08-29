@@ -92,6 +92,7 @@ def decide_recovery(*, blocked: ToolCallRequest, block_rationale: str, candidate
 
 def _run_adk_turn(prompt: str) -> dict:
     from google.adk.agents import Agent
+    from google.adk.planners import BuiltInPlanner
     from google.adk.runners import InMemoryRunner
     from google.genai import types
 
@@ -100,6 +101,13 @@ def _run_adk_turn(prompt: str) -> dict:
         model=_resolve_model(),
         description="Decides retry-vs-abort after a blocked fleet call.",
         instruction=_INSTRUCTION,
+        # See the matching comment in reviewer_agent.py — disabling
+        # thinking avoids the same server-side 504 DEADLINE_EXCEEDED
+        # this call is just as susceptible to (same model, same class
+        # of small structured judgment call). Goes through
+        # LlmAgent.planner, not generate_content_config directly (ADK
+        # raises a pydantic validation error otherwise).
+        planner=BuiltInPlanner(thinking_config=types.ThinkingConfig(thinking_budget=0)),
     )
     runner = InMemoryRunner(agent=agent, app_name="warden")
     session = runner.session_service.create_session_sync(app_name="warden", user_id="orchestrator")
