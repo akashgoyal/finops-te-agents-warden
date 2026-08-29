@@ -6,7 +6,13 @@
     GET  /v1/trips            the trip presets — what the dashboard's pills offer
     GET  /v1/transactions      trip-level records (input, agent order, status)
     GET  /v1/log                 the persisted audit ledger (page-load backfill)
-    GET  /healthz                 Cloud Run readiness probe
+    GET  /health                   liveness/readiness probe
+
+Not /healthz: verified live on Cloud Run that this exact literal path
+never reaches the container at all (no request in Cloud Run's own logs,
+Google's generic edge 404 instead) while every other path, including
+/health, passes through fine — Google's front end special-cases it.
+/health is the same probe, just not on the reserved-looking path.
 
 This is intentionally the only entry point. An agent that skips it and
 calls a tool directly is exactly the failure mode Warden exists to close.
@@ -54,8 +60,8 @@ if _dashboard_dir.exists():
     app.mount("/static", StaticFiles(directory=str(_dashboard_dir)), name="static")
 
 
-@app.get("/healthz")
-def healthz() -> dict:
+@app.get("/health")
+def health() -> dict:
     return {"status": "ok"}
 
 

@@ -13,8 +13,8 @@ from warden.gateway import app
 client = TestClient(app)
 
 
-def test_healthz():
-    assert client.get("/healthz").json() == {"status": "ok"}
+def test_health():
+    assert client.get("/health").json() == {"status": "ok"}
 
 
 def test_in_scope_call_is_allowed():

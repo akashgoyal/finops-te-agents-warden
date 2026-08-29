@@ -37,6 +37,20 @@ echo -n "${WARDEN_SECRET_KEY:?Set WARDEN_SECRET_KEY first}" | \
   gcloud secrets create warden-secret-key --data-file=- 2>/dev/null || \
   echo -n "$WARDEN_SECRET_KEY" | gcloud secrets versions add warden-secret-key --data-file=-
 
+echo "==> Granting the Cloud Run service account read access to both secrets"
+# Creating a secret does NOT implicitly grant the default compute service
+# account access to it — found live: deploy_cloud_run.sh got all the way
+# through building and creating the revision, then failed with "Permission
+# denied on secret ... must be granted Secret Manager Secret Accessor".
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
+RUN_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+for secret in warden-google-api-key warden-secret-key; do
+  gcloud secrets add-iam-policy-binding "$secret" \
+    --member="serviceAccount:${RUN_SA}" \
+    --role="roles/secretmanager.secretAccessor" \
+    --quiet || echo "    (binding for $secret may already exist — non-fatal)"
+done
+
 echo "==> Billing budget alert at \$${BILLING_ALERT_USD} (tripwire, not an expectation)"
 BILLING_ACCOUNT=$(gcloud billing projects describe "$PROJECT_ID" --format='value(billingAccountName)')
 gcloud billing budgets create \
