@@ -53,34 +53,42 @@
   code { font-family: var(--font-mono); }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  /* ---------- app layout: four pill-shaped columns ---------- */
-  /* Four lanes, left to right: what the user did (App) -> what Warden's
-     own pipeline decided (Trace) -> the trip-level record (Transactions)
-     -> what actually touched Google infrastructure to get there
-     (Platform). Each is its own capsule-shaped card, not a bordered
-     region of one continuous surface — the shape itself says "these are
-     four independent feeds," before any color or label does. */
+  /* ---------- app layout: three lanes, four pills ---------- */
+  /* App (left) and Platform (right) run the full height, one feed each.
+     The middle lane is where Trace and Transactions used to sit
+     side-by-side, competing for width neither needed as much as height —
+     now they stack instead: Trace on top (what's happening right now),
+     Transactions below (the trip-level record of what already happened),
+     each still its own capsule, each scrolling independently within its
+     own half. */
   .app-layout {
     display: grid;
-    /* App and Platform are read-at-a-glance rails (pills, a short feed);
-       Trace and Transactions are where the actual working detail lives,
-       but they don't need to dominate the row the way they did at 300/1fr —
-       these get real, fixed room instead of shrinking to whatever's left. */
-    grid-template-columns: 360px 1fr 1fr 360px;
+    grid-template-columns: 360px 1fr 360px;
+    grid-template-rows: 1fr 1fr;
+    grid-template-areas:
+      "app trace    platform"
+      "app txns     platform";
     gap: 16px;
     padding: 16px;
-    min-height: 100vh; min-height: 100dvh;
+    height: 100vh; height: 100dvh;
     align-items: stretch;
   }
-  @media (max-width: 1500px) { .app-layout { grid-template-columns: 320px 1fr 1fr 320px; } }
+  @media (max-width: 1500px) { .app-layout { grid-template-columns: 320px 1fr 320px; } }
   @media (max-width: 1180px) {
-    .app-layout { grid-template-columns: 1fr 1fr; }
-    .col-app, .col-platform { grid-column: 1 / -1; }
+    .app-layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: none;
+      grid-template-areas: "app" "trace" "txns" "platform";
+      height: auto;
+    }
+    .col-pill { height: auto; max-height: 70vh; }
   }
-  @media (max-width: 680px) {
-    .app-layout { grid-template-columns: 1fr; padding: 10px; gap: 10px; }
-    .col-app, .col-trace, .col-txns, .col-platform { grid-column: 1 / -1; }
-  }
+  @media (max-width: 680px) { .app-layout { padding: 10px; gap: 10px; } }
+
+  .col-app { grid-area: app; }
+  .col-trace { grid-area: trace; }
+  .col-txns { grid-area: txns; }
+  .col-platform { grid-area: platform; }
 
   /* The shared pill shape every column wears, regardless of palette. */
   .col-pill {
@@ -90,10 +98,11 @@
     box-shadow: var(--shadow);
     display: flex; flex-direction: column;
     overflow: hidden;
-    position: sticky; top: 16px;
-    height: calc(100vh - 32px); height: calc(100dvh - 32px);
+    /* min-height:0 is the one that matters here — without it a grid
+       item won't actually shrink to its cell, it'll grow to fit its
+       content instead, and "scrollable" silently stops being true. */
+    min-height: 0;
   }
-  @media (max-width: 680px) { .col-pill { position: static; height: auto; max-height: 70vh; } }
   .col-pill-head { flex: none; padding: 22px 24px 14px; }
   .col-pill-icon { font-size: 24px; line-height: 1; margin-bottom: 8px; }
   .col-pill-title { font-family: var(--font-display); font-weight: 800; font-size: 16px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
@@ -252,13 +261,16 @@
   /* merged Transactions + agent detail: a card per trip, the agent-level
      detail (what the old separate Audit Ledger listed as one card per
      call) reveals on hover instead of living as its own long list. */
-  .txn-cards { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
-  .txn-card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 13px 15px; cursor: pointer; transition: border-color .15s ease; }
+  .txn-cards { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
+  .txn-card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 10px 13px; cursor: pointer; transition: border-color .15s ease; }
   .txn-card:hover { border-color: var(--accent); }
   .txn-card.selected { border-color: var(--accent); background: var(--accent-tint); }
-  .txn-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+  .txn-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 3px; }
   .txn-card-label { font-weight: 600; font-size: 13.5px; }
-  .txn-card-meta { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); margin-bottom: 10px; }
+  /* Shrunk on purpose — one compact line (time · duration, no redundant
+     finish-time echo), smaller type, tighter margin — so a card's height
+     is mostly the node-chain, not administrative timestamp text. */
+  .txn-card-meta { font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint); margin-bottom: 6px; }
 
   /* the linked list: one node per executed step, in execution order */
   .node-chain { display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
@@ -540,7 +552,7 @@
               <div class="txn-card-meta">
                 <span x-text="fmtTime(t.start_ts)"></span>
                 <template x-if="t.finish_ts">
-                  <span>→ <span x-text="fmtTime(t.finish_ts)"></span> · <span x-text="fmtDuration(t.finish_ts - t.start_ts)"></span></span>
+                  <span>· <span x-text="fmtDuration(t.finish_ts - t.start_ts)"></span></span>
                 </template>
               </div>
 
@@ -869,7 +881,8 @@ function wardenApp() {
 
     fmtTime(ts) {
       if (!ts) return '—';
-      return new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      // No seconds — one less thing competing for space on a compact card row.
+      return new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     },
     fmtDuration(seconds) {
       if (seconds == null) return '—';
