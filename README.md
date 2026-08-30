@@ -166,6 +166,37 @@ ground and the accent shift per zone.
   `/v1/log` and `/v1/transactions` are only used once, on page load, to
   backfill history.
 
+## Local vs. cloud — one codebase, config-driven
+
+There's no separate "local" and "cloud" copy of Warden — `warden/` is the
+same code, same imports, same `Agent` definitions either way. What changes
+between running it on your laptop and running the deployed Cloud Run
+service is entirely which environment variables are set. That's a
+deliberate architectural choice (see "Same agent code, three swappable
+backends" in [`docs/architecture.html`](docs/architecture.html)), not a
+gap — duplicating the app into two folders would mean two copies of the
+guardrail/triage/review/orchestrator logic to keep in sync, which is
+exactly the kind of drift this project's whole premise argues against.
+
+The one genuine exception is `agent_engine/` — a real second codebase
+with its own `.venv`, because it needs a `google-adk` version the main
+app's pinned dependency can't satisfy (see `agent_engine/README.md`).
+Everything else below is one app, four ways to configure it:
+
+| Where / how | `MODEL_BACKEND` | Required vars | Optional vars | Notes |
+|---|---|---|---|---|
+| **Local, default** | `ollama` | — | `OLLAMA_TRIAGE_MODEL`, `OLLAMA_REVIEW_MODEL`, `OLLAMA_HOST` | Needs `ollama serve` running; zero API key, zero GCP project |
+| **Local or cloud, AI Studio** | `gemini` | `GOOGLE_API_KEY` | `GEMINI_MODEL`, `GEMMA_MODEL` | What's actually deployed on Cloud Run; genuine free tier |
+| **Local or cloud, Vertex + Model Armor** | `vertex` | `GOOGLE_CLOUD_PROJECT` | `VERTEX_LOCATION`, `MODEL_ARMOR_PROMPT_TEMPLATE`, `MODEL_ARMOR_RESPONSE_TEMPLATE` | Run `scripts/setup_model_armor.sh` once first; no free tier — billed from the first token |
+| **Firestore-backed registry/ledger** (any backend above) | — | `GOOGLE_CLOUD_PROJECT` | `FIRESTORE_DATABASE` | Leave `GOOGLE_CLOUD_PROJECT` blank for local dev — both fall back to in-memory automatically |
+| **Cloud Run deploy itself** | `gemini` (hardcoded in the script) | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_API_KEY`, `WARDEN_SECRET_KEY` | — | Set via `scripts/deploy_cloud_run.sh`'s `--set-env-vars`/`--set-secrets`, not `.env` — the deployed container never reads a `.env` file |
+| **Agent Engine** (`agent_engine/`, separate venv) | n/a — its own script | `GOOGLE_CLOUD_PROJECT` | `VERTEX_LOCATION`, `AGENT_ENGINE_MODEL`, `AGENT_ENGINE_STAGING_BUCKET` | Isolated `google-adk>=1.5.0`; see "Cost" in `agent_engine/README.md` before leaving it deployed |
+
+`WARDEN_SECRET_KEY` and `PORT` apply everywhere and don't change between
+modes. `WARDEN_STUB_MODE=true` skips every model backend entirely
+(deterministic decisions, no network calls) — that's what `make test`
+runs under, independent of whatever `MODEL_BACKEND` is otherwise set to.
+
 ## Quickstart — local models first, cloud later
 
 Requires **Python 3.11+** (litellm needs it) and [Ollama](https://ollama.com)

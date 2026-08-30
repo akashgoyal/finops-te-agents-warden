@@ -266,6 +266,47 @@
     line-height: 1.5;
   }
 
+  /* ---------- FEE component table ---------- */
+
+  .fee-table-wrap {
+    margin-top: 22px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow-x: auto;
+    background: var(--surface);
+  }
+  .fee-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    min-width: 720px;
+  }
+  .fee-table th {
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 500;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  .fee-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink-soft);
+    line-height: 1.5;
+    vertical-align: top;
+  }
+  .fee-table tr:last-child td { border-bottom: none; }
+  .fee-table td b { color: var(--ink); font-weight: 600; }
+  .fee-table code { font-family: var(--font-mono); font-size: 0.92em; }
+  .fee-table tr.fee-verified td:first-child {
+    box-shadow: inset 3px 0 0 var(--infra);
+  }
+
   /* ---------- footer ---------- */
 
   footer {
@@ -586,25 +627,174 @@
   </section>
 
   <!-- ============================================================ -->
-  <!-- STACK STRIP                                                    -->
+  <!-- FIGURE 3 — Agent Engine: Identity + Memory Bank                 -->
   <!-- ============================================================ -->
 
   <section>
     <div class="section-head">
-      <div class="section-num">03 — Stack</div>
-      <h2>What's actually load-bearing</h2>
+      <div class="section-num">03 — Agent Identity &amp; Memory Bank</div>
+      <h2>Same agent definition, two hosting targets — one grants a real identity</h2>
+      <p class="section-note">
+        The reviewer's <em>code</em> doesn't change between these two — only
+        where it runs. In-process on Cloud Run (what's actually deployed)
+        it runs as the default compute service account, with nothing
+        persisting between calls. Deployed once to Vertex AI Agent Engine
+        instead, the resource gets a dedicated cryptographic identity and
+        cross-session memory automatically — verified by reading the
+        deployed resource's own spec, not the marketing description.
+      </p>
     </div>
 
-    <div class="stack-grid">
-      <div class="stack-cell">
-        <div class="k">Compute</div>
-        <div class="v">Cloud Run</div>
-        <div class="d">FastAPI gateway, scaled to zero between demo runs</div>
+    <figure>
+      <div class="fig-frame">
+        <svg viewBox="0 0 1020 320" role="img" aria-label="The same ADK reviewer agent definition can run on either of two hosting targets. On Cloud Run, in-process via ADK's InMemoryRunner, it runs as the default compute service account with no memory persisting between calls. Deployed instead to Vertex AI Agent Engine, the resulting resource is automatically granted a dedicated IAM service account as its Agent Identity, and a Memory Bank configuration for persistent cross-session context, confirmed by reading the deployed resource's own specification.">
+          <defs>
+            <marker id="arrow-ink-3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+            <marker id="arrow-infra-3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--infra)"/>
+            </marker>
+          </defs>
+
+          <rect x="20" y="90" width="180" height="110" rx="9" fill="var(--surface-2)" stroke="var(--line-strong)"/>
+          <text x="110" y="128" text-anchor="middle" class="dg-node-title" fill="var(--ink)">ADK Agent</text>
+          <text x="110" y="146" text-anchor="middle" class="dg-node-sub" fill="var(--ink-soft)">reviewer_agent.py</text>
+          <text x="110" y="164" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">same instruction,</text>
+          <text x="110" y="178" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">imported not duplicated</text>
+
+          <!-- row 1: Cloud Run (deployed, default) -->
+          <path d="M 200 130 H 225 V 65 H 246" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow-ink-3)"/>
+          <rect x="250" y="20" width="260" height="90" rx="9" fill="var(--surface-2)" stroke="var(--line-strong)"/>
+          <text x="266" y="43" class="dg-node-title" fill="var(--ink)">Cloud Run</text>
+          <text x="266" y="61" class="dg-node-sub" fill="var(--ink-soft)">in-process &middot; InMemoryRunner</text>
+          <text x="266" y="79" class="dg-node-sub" fill="var(--allow)">deployed &middot; what's live today</text>
+          <text x="266" y="97" class="dg-node-sub" fill="var(--ink-faint)">one call, no memory kept</text>
+
+          <line x1="510" y1="65" x2="556" y2="65" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow-ink-3)"/>
+
+          <rect x="560" y="20" width="280" height="90" rx="9" fill="var(--surface)" stroke="var(--line)" stroke-dasharray="3 3"/>
+          <text x="576" y="43" class="dg-node-title" fill="var(--ink-soft)">Default identity</text>
+          <text x="576" y="61" class="dg-node-sub" fill="var(--ink-faint)">project's compute service account</text>
+          <text x="576" y="79" class="dg-node-sub" fill="var(--ink-faint)">shared, not per-agent</text>
+          <text x="576" y="97" class="dg-node-sub" fill="var(--ink-faint)">no cross-session context</text>
+
+          <!-- row 2: Agent Engine -->
+          <path d="M 200 160 H 225 V 235 H 246" fill="none" stroke="var(--infra)" stroke-width="1.4" marker-end="url(#arrow-infra-3)"/>
+          <rect x="250" y="175" width="260" height="120" rx="9" fill="var(--infra-tint)" stroke="var(--infra)"/>
+          <text x="266" y="198" class="dg-node-title" fill="var(--ink)">Agent Engine</text>
+          <text x="266" y="216" class="dg-node-sub" fill="var(--ink-soft)">vertexai.agent_engines.AdkApp</text>
+          <text x="266" y="234" class="dg-node-sub" fill="var(--infra)">opt-in &middot; agent_engine/</text>
+          <text x="266" y="252" class="dg-node-sub" fill="var(--ink-faint)">isolated venv &middot; google-adk&gt;=1.5</text>
+          <text x="266" y="270" class="dg-node-sub" fill="var(--ink-faint)">not scale-to-zero &mdash; delete after use</text>
+
+          <path d="M 510 210 H 535 V 199 H 556" fill="none" stroke="var(--infra)" stroke-width="1.4" marker-end="url(#arrow-infra-3)"/>
+          <path d="M 510 260 H 535 V 271 H 556" fill="none" stroke="var(--infra)" stroke-width="1.4" marker-end="url(#arrow-infra-3)"/>
+
+          <rect x="560" y="175" width="280" height="48" rx="8" fill="var(--infra-tint)" stroke="var(--infra)"/>
+          <text x="576" y="194" class="dg-node-title" fill="var(--ink)">Agent Identity</text>
+          <text x="576" y="211" class="dg-node-sub" fill="var(--infra)">effectiveIdentity: dedicated IAM SA</text>
+
+          <rect x="560" y="247" width="280" height="48" rx="8" fill="var(--infra-tint)" stroke="var(--infra)"/>
+          <text x="576" y="266" class="dg-node-title" fill="var(--ink)">Memory Bank</text>
+          <text x="576" y="283" class="dg-node-sub" fill="var(--infra)">contextSpec.memoryBankConfig</text>
+        </svg>
       </div>
+      <figcaption>
+        <b>What was actually checked:</b> deployed the reviewer to Agent
+        Engine, then queried the live resource's raw spec —
+        <code>spec.effectiveIdentity</code> came back as a dedicated
+        <code>...-aiplatform-re.iam.gserviceaccount.com</code> service
+        account (not the shared default), and
+        <code>contextSpec.memoryBankConfig</code> was present without
+        having been requested — Memory Bank came from choosing this
+        hosting target, not a separate integration. Queried it live with
+        the same scope-violation scenario the whole demo is built around
+        and got the correct <code>BLOCK</code> decision back. Deleted
+        again immediately after — Agent Engine doesn't share Cloud Run's
+        scale-to-zero cost profile.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- FIGURE 4 — Fortified Enterprise Fleet component mapping         -->
+  <!-- ============================================================ -->
+
+  <section>
+    <div class="section-head">
+      <div class="section-num">04 — Google Cloud &amp; AI platform</div>
+      <h2>What's used, and what for</h2>
+      <p class="section-note">
+        The Fortified Enterprise Fleet track names specific infrastructure
+        pieces an enterprise agent fleet needs. Every row below is a piece
+        actually running in this repo, not a description matched to a
+        name — file, package, and how it was verified.
+      </p>
+    </div>
+
+    <div class="fee-table-wrap">
+      <table class="fee-table">
+        <thead>
+          <tr>
+            <th>Named component</th>
+            <th>Used for</th>
+            <th>Warden file</th>
+            <th>Google package / tech</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>Agent Gateway</b></td>
+            <td>Unified routing + policy enforcement — every fleet call passes through one place</td>
+            <td><code>gateway.py</code></td>
+            <td>Cloud Run &middot; calls <code>google-adk</code>/<code>google-genai</code></td>
+          </tr>
+          <tr>
+            <td><b>Agent Registry</b></td>
+            <td>Publishes each agent's declared scope &amp; spend caps for lookup at call time</td>
+            <td><code>registry.py</code></td>
+            <td><code>google.cloud.firestore</code></td>
+          </tr>
+          <tr>
+            <td><b>Agent Runtime</b></td>
+            <td>Runs a whole trip asynchronously in the background, not blocking the request</td>
+            <td><code>orchestrator.py</code></td>
+            <td>FastAPI <code>BackgroundTasks</code> &middot; <code>google.adk.runners.InMemoryRunner</code></td>
+          </tr>
+          <tr>
+            <td><b>Model Armor</b></td>
+            <td>Inline prompt/response screening on the reviewer's judgment calls</td>
+            <td><code>reviewer_agent.py</code></td>
+            <td><code>google.genai.types.ModelArmorConfig</code>, via Vertex AI</td>
+          </tr>
+          <tr class="fee-verified">
+            <td><b>Agent Identity</b></td>
+            <td>Zero-trust, per-agent cryptographic identity for access control &amp; audit</td>
+            <td><code>agent_engine/deploy_reviewer.py</code></td>
+            <td><code>vertexai.agent_engines</code> &middot; deployed resource's own dedicated IAM service account</td>
+          </tr>
+          <tr class="fee-verified">
+            <td><b>Memory Bank</b></td>
+            <td>Persistent context for one agent across sessions, not just one call</td>
+            <td>same Agent Engine deployment</td>
+            <td>auto-provisioned <code>contextSpec.memoryBankConfig</code></td>
+          </tr>
+          <tr>
+            <td><b>Agent Observability</b></td>
+            <td>Audit trail + live reasoning-chain trace for every decision</td>
+            <td><code>ledger.py</code> + <code>events.py</code></td>
+            <td><code>google.cloud.firestore</code> (ledger) &middot; OTel configured, not confirmed exported</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="stack-grid" style="margin-top:22px;">
       <div class="stack-cell">
         <div class="k">Model — reasoning</div>
         <div class="v">Gemini 3.5 Flash</div>
-        <div class="d">Reviewer + Orchestrator, via ADK, deployed on the Gemini Developer API</div>
+        <div class="d">Reviewer + Orchestrator, via ADK, on the Gemini Developer API</div>
       </div>
       <div class="stack-cell">
         <div class="k">Model — triage</div>
@@ -617,19 +807,9 @@
         <div class="d">Agent + Runner for the Reviewer and Orchestrator</div>
       </div>
       <div class="stack-cell">
-        <div class="k">Storage</div>
-        <div class="v">Firestore</div>
-        <div class="d">Agent registry and the hash-chained audit ledger</div>
-      </div>
-      <div class="stack-cell">
         <div class="k">Secrets</div>
         <div class="v">Secret Manager</div>
         <div class="d">API key and token-signing secret, mounted at deploy</div>
-      </div>
-      <div class="stack-cell">
-        <div class="k">Security — opt-in</div>
-        <div class="v">Model Armor</div>
-        <div class="d">Prompt/response screening on the Vertex AI backend</div>
       </div>
       <div class="stack-cell">
         <div class="k">Build</div>
