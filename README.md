@@ -1,25 +1,58 @@
 # Warden
 
-The authorization gateway a Finance Ops team would require before letting
-agents touch corporate spend. Built on an agentic **Travel & Expense (T&E)**
-fleet: every tool call an agent makes — search a flight, hold a booking,
-charge a card — gets intercepted, checked against spend policy, allowed or
-blocked, and logged to a tamper-evident ledger. Before it executes, not
-after Finance finds out from the statement.
+An authorization gateway for a corporate agentic fleet — built on an
+agentic **Travel & Expense (T&E)** fleet as the concrete example.
+Submission for the **All Things Agentic Hackathon**, Fortified
+Enterprise Fleet track.
 
-Built for the **All Things Agentic Hackathon** (Fortified Enterprise Fleet
-track). Runs entirely on Google's free tier — see [Cost](#cost) below.
+## 1. Problem
 
-**Live**: https://warden-330594494974.us-central1.run.app — deployed on
-Cloud Run, backed by real Gemini/Gemma (not stub mode), Firestore-backed
-registry and ledger. Click a trip pill to trigger a real orchestrated run.
+Corporate agent fleets are getting real spending authority, and 2026
+has already had real incidents of agents taking actions nobody
+authorized — an assistant exploiting a fitness-booking system, agents
+caught exploiting their own infrastructure. Today, nothing stops a
+scope-violating tool call — an agent holding a hotel room that tries
+to charge a card directly, say — before it executes.
 
-**Architecture diagram**: maintained on the blog, not in this repo —
-https://akashgoyal.github.io/aiml/blog/warden-architecture.html — the
-full request-flow diagram, two scenario walkthroughs (breaching the
-spend limit, breaching access scope), the backend-swap comparison, and
-the Google Cloud stack breakdown. The Mermaid flowchart just below is
-the quick version.
+## 2. Solution
+
+Warden intercepts every tool call an agent in the fleet makes — search
+a flight, hold a booking, charge a card — before it reaches the real
+tool. Each call is checked by a deterministic hard-limit guardrail,
+then a tiered Gemma/Gemini review against the fleet's declared policy.
+An allowed call gets a signed, task-bounded token; a blocked call goes
+to an orchestrator agent that decides live — not scripted per route —
+whether to retry through the correctly-scoped agent or abort the trip.
+Every decision lands in a hash-chained Firestore ledger before it
+executes, not after Finance finds it on a statement.
+
+## 3. Deliverables
+
+- **Live app** — https://warden-330594494974.us-central1.run.app —
+  deployed on Cloud Run, real Gemini/Gemma (not stub mode),
+  Firestore-backed registry and ledger. Click a trip pill to trigger a
+  real orchestrated run.
+- **Architecture walkthrough** —
+  https://akashgoyal.github.io/aiml/blog/warden-architecture.html —
+  full request-flow diagram, two scenario walkthroughs (breaching the
+  spend limit, breaching access scope), the backend-swap comparison,
+  and the Google Cloud stack breakdown.
+- **Source** — this repo.
+
+## 4. Google platform tools used
+
+- **Gemini 3.5 Flash + Gemma** — the tiered review pipeline (`google-genai`)
+- **Google ADK** — the reviewer and orchestrator agents (`google-adk`, `InMemoryRunner`)
+- **Cloud Run** — hosts the live gateway, scaled to zero when idle
+- **Firestore** — agent registry, hash-chained audit ledger, transactions
+- **Secret Manager** — API key/secret storage for the deployed service
+- **Vertex AI Model Armor** — inline prompt/response screening, verified live on an opt-in backend
+- **Vertex AI Agent Engine** — Agent Identity (dedicated IAM service account per agent) and Memory Bank, verified live on a separate deployment
+- **Cloud Build + Artifact Registry** — the `gcloud run deploy --source=.` build pipeline
+
+Runs entirely on Google's free tier — see [Cost](#cost) below.
+
+---
 
 ## Why
 
@@ -359,57 +392,37 @@ agent_engine/         isolated venv + script: deploys the reviewer to Vertex AI
 
 ## Known gaps (honest, for the writeup)
 
-- Fixed, not just documented: the Transactions panel used to reset on
-  every server restart while the "Calls" stat kept climbing — the
-  ledger was already Firestore-backed, the transaction store wasn't.
-  Live user caught it (574 calls, 1 transaction showing). Root cause:
-  `warden/transactions.py` was in-memory-only on every backend, so a
-  trip's steps only "persisted" via a shared Python object reference —
-  fine for one process, gone on restart. Now Firestore-backed, same
-  pattern as the registry/ledger, with explicit `store.save(txn)` calls
-  after every step (Firestore has no equivalent of mutating a live
-  in-memory object — each append needs its own write). Verified live:
-  triggered a trip, watched it persist step-by-step via `/v1/transactions`
-  mid-run, killed the server intentionally mid-trip and confirmed it
-  survived as an accurate "running" record instead of vanishing, then
-  ran a full trip to completion and confirmed a restart preserved the
-  finished record exactly. Pre-fix history doesn't retroactively
-  reconcile — those transactions were only ever in-memory — but call
-  and transaction counts stay aligned from here on.
-- Policy is a single Markdown doc, not multi-tenant or versioned.
-- The reviewer agent's JSON parsing is best-effort — good enough for a
-  hackathon demo, not hardened against a model that ignores the format.
-- **Model Armor** (Vertex AI's prompt/response screening) is wired up as a
-  third `MODEL_BACKEND=vertex` option — additive, doesn't touch the
-  `ollama`/`gemini` paths — and verified working end-to-end locally:
-  `scripts/setup_model_armor.sh` provisions the template/IAM/APIs, and
-  the reviewer, orchestrator, and triage calls all pass a real Model
-  Armor template through `generate_content_config`. It's a demonstrated
-  proof-of-concept, not the deployed default, for two concrete reasons
-  found by actually trying it: Vertex AI's Gemini calls are billed from
-  the first token (no AI-Studio-style free tier), and this project's
-  Vertex AI catalog only has access up to `gemini-2.5-flash` — every
-  `gemini-3.x` model 404s here (`client.models.list()` shows them, but
-  `generate_content` doesn't — a Model Garden entitlement gap, not a
-  code issue), so it can't independently satisfy the hackathon's
-  "Gemini 3.5+" requirement the way the deployed `gemini` (AI Studio)
-  backend already does.
-- **Agent Observability**: the audit ledger (hash-chained Firestore) and
+- **Transactions panel used to reset on restart** while the "Calls"
+  stat kept climbing — the ledger was Firestore-backed, the
+  transaction store wasn't. Caught live (574 calls, 1 transaction
+  showing). **Fixed**: `transactions.py` is now Firestore-backed too,
+  with an explicit `store.save(txn)` after every step. Verified live
+  across a mid-trip restart and a completed-trip restart — both
+  survived accurately. Pre-fix history doesn't retroactively
+  reconcile, but counts stay aligned from here on.
+- Policy is a single Markdown doc — not multi-tenant or versioned.
+- The reviewer agent's JSON parsing is best-effort — fine for a
+  hackathon demo, not hardened against a model that ignores the
+  format.
+- **Model Armor is a demonstrated proof-of-concept, not the deployed
+  default.** Verified working end-to-end locally (`MODEL_BACKEND=vertex`,
+  `scripts/setup_model_armor.sh`), but not deployed to Cloud Run
+  because: Vertex AI's Gemini calls bill from the first token (no
+  AI-Studio-style free tier), and this project's Vertex catalog only
+  reaches `gemini-2.5-flash` — every `gemini-3.x` model 404s on
+  `generate_content` here (a Model Garden entitlement gap, not a code
+  issue) — so it can't satisfy the hackathon's "Gemini 3.5+"
+  requirement the way the deployed AI-Studio backend already does.
+- **Agent Observability is partial.** The Firestore audit ledger and
   live SSE trace are a real, working audit trail, but not
-  OpenTelemetry-compliant — `agent_engine/`'s deployment does set
-  `AdkApp(enable_tracing=True)` (confirmed on the deployed resource's own
-  spec), but a Cloud Trace query for this project came back empty after a
-  real call and a wait, with the Trace API confirmed enabled. Reported as
-  configured, not confirmed — see `agent_engine/README.md`.
-- `gemma2:2b` turned out to be genuinely too small for the reviewer role,
-  not just noisy — as the fleet grew to 5 agents / 5 policy sections, it
-  aborted 3 real orchestrated trips in a row, hallucinating blocks on
-  calls (`flights.hold`, `hotel.hold`) that were actually in scope. Triage
-  over-escalating is cheap and safe (worst case, an extra review hop); the
-  reviewer reasoning incorrectly is the actual risk this project exists to
-  catch, in its own dependency — so this got fixed, not just documented.
-  `OLLAMA_REVIEW_MODEL` now defaults to `llama3.1:8b` (`warden/config.py`),
-  same machine, no download, still small relative to any cloud model — and
-  it ran the full 9-step trip clean, including the orchestrator's
-  retry-after-block. `MODEL_BACKEND=gemini` still exists as a one-line
-  switch for the actually-recorded demo, if you want the extra margin.
+  OpenTelemetry-compliant. `agent_engine/`'s deployment does set
+  `AdkApp(enable_tracing=True)`, but a Cloud Trace query came back
+  empty after a real call — reported as configured, not confirmed
+  (see `agent_engine/README.md`).
+- **`gemma2:2b` was genuinely too small for the reviewer role** — as
+  the fleet grew to 5 agents, it hallucinated blocks on in-scope calls
+  across 3 real orchestrated trips in a row. **Fixed**:
+  `OLLAMA_REVIEW_MODEL` now defaults to `llama3.1:8b`, which ran a
+  full 9-step trip clean, including the orchestrator's
+  retry-after-block. `MODEL_BACKEND=gemini` is still a one-line switch
+  for extra margin.
