@@ -325,7 +325,7 @@ warden/
   models.py            shared pydantic types
   registry.py           agent scopes — Firestore, or in-memory for local dev
   ledger.py              hash-chained audit log — Firestore or in-memory
-  transactions.py          one record per trip — input, start/finish, agent order, status
+  transactions.py          one record per trip — Firestore or in-memory, same pattern as the registry/ledger
   guardrails.py              deterministic hard limits, checked before any model
   triage.py                    Gemma first-pass filter
   reviewer_agent.py              ADK agent — Ollama locally, Gemini in the cloud
@@ -349,6 +349,23 @@ agent_engine/         isolated venv + script: deploys the reviewer to Vertex AI
 
 ## Known gaps (honest, for the writeup)
 
+- Fixed, not just documented: the Transactions panel used to reset on
+  every server restart while the "Calls" stat kept climbing — the
+  ledger was already Firestore-backed, the transaction store wasn't.
+  Live user caught it (574 calls, 1 transaction showing). Root cause:
+  `warden/transactions.py` was in-memory-only on every backend, so a
+  trip's steps only "persisted" via a shared Python object reference —
+  fine for one process, gone on restart. Now Firestore-backed, same
+  pattern as the registry/ledger, with explicit `store.save(txn)` calls
+  after every step (Firestore has no equivalent of mutating a live
+  in-memory object — each append needs its own write). Verified live:
+  triggered a trip, watched it persist step-by-step via `/v1/transactions`
+  mid-run, killed the server intentionally mid-trip and confirmed it
+  survived as an accurate "running" record instead of vanishing, then
+  ran a full trip to completion and confirmed a restart preserved the
+  finished record exactly. Pre-fix history doesn't retroactively
+  reconcile — those transactions were only ever in-memory — but call
+  and transaction counts stay aligned from here on.
 - Policy is a single Markdown doc, not multi-tenant or versioned.
 - The reviewer agent's JSON parsing is best-effort — good enough for a
   hackathon demo, not hardened against a model that ignores the format.

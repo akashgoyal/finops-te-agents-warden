@@ -58,6 +58,7 @@ def run_trip(preset_id: str) -> Transaction:
             model_armor_template=result.get("model_armor_template"),
             token=result.get("token"), ts=time.time(),
         ))
+        store.save(txn)
 
         if result["decision"] == "allow":
             i += 1
@@ -91,6 +92,7 @@ def run_trip(preset_id: str) -> Transaction:
             model_armor_template=recovery.get("model_armor_template"),
             ts=time.time(),
         ))
+        store.save(txn)
 
         if recovery["action"] == "abort":
             aborted = True
@@ -112,11 +114,13 @@ def run_trip(preset_id: str) -> Transaction:
             model_armor_template=retry_result.get("model_armor_template"),
             token=retry_result.get("token"), ts=time.time(),
         ))
+        store.save(txn)
         i += 1
         time.sleep(_STEP_PACING_SECONDS)
 
     txn.finish_ts = time.time()
     txn.status = "aborted" if aborted else "paused_escalated" if paused else "completed"
+    store.save(txn)
     events.publish({
         "type": "transaction_finished", "transaction_id": txn.transaction_id,
         "finish_ts": txn.finish_ts, "status": txn.status,
