@@ -69,24 +69,23 @@ workflow every finance org already has a policy for — travel and expense.
 
 ## Fortified Enterprise Fleet — mapped against the named components
 
-The track names specific infrastructure pieces an enterprise fleet
-needs. Here's what backs each — verified by reading imports and, for
-the cloud pieces, by running them live:
+The track names specific infrastructure an enterprise fleet needs.
+Here's what backs each, verified by running the real thing, not by
+matching a name to a description:
 
-| Named component | Status | Warden file | Google package/tech |
-|---|---|---|---|
-| **Agent Gateway** — routing, policy enforcement | Core of the system | `warden/gateway.py` | Cloud Run; calls `google-adk`/`google-genai` for review |
-| **Agent Registry** — publish/version/discover approved agents | Built | `warden/registry.py` | `google.cloud.firestore` |
-| **Agent Runtime** — long-running async execution | Built | `orchestrator.py` + `gateway.py`'s `BackgroundTasks` | `google.adk.runners.InMemoryRunner` |
-| **Model Armor** — inline guardrails, prompt injection/PII | Built, verified live | `reviewer_agent.py`'s `_generate_content_config()` | `google.genai.types.ModelArmorConfig`, via Vertex AI |
-| **Agent Identity** — per-agent cryptographic identity | Built, verified live | `agent_engine/deploy_reviewer.py` | `vertexai.agent_engines` — deployed resource's `effectiveIdentity` is its own dedicated IAM service account |
-| **Memory Bank** — persistent cross-session context | Built, verified live | same Agent Engine deployment | Auto-provisioned `contextSpec.memoryBankConfig` — not a separate integration |
-| **Agent Observability** — OTel-compliant audit + reasoning traces | Partial | `ledger.py` (audit trail) + `events.py` (live trace) | Firestore audit trail is real; `AdkApp(enable_tracing=True)` is configured, but Cloud Trace export wasn't confirmed |
+| Named component | Status | Backed by |
+|---|---|---|
+| **Agent Gateway** | Core of the system | The Cloud Run service itself — every tool call routes through it |
+| **Agent Registry** | Built | Firestore |
+| **Agent Runtime** | Built | Google ADK's async agent runner |
+| **Model Armor** | Built, verified live | Vertex AI Model Armor, on the opt-in `vertex` backend |
+| **Agent Identity** | Built, verified live | Vertex AI Agent Engine — a dedicated IAM identity per deployed agent |
+| **Memory Bank** | Built, verified live | Vertex AI Agent Engine — auto-provisioned on the same deployment |
+| **Agent Observability** | Partial | Firestore audit trail is real; OTel trace export was configured but not confirmed |
 
-`agent_engine/` is a separate, additive deployment — not wired into
-the live Cloud Run call path, due to a real `google-adk` version
-conflict with the pinned Cloud Run deps. See `agent_engine/README.md`
-for what was verified there.
+Agent Identity and Memory Bank live on a separate Agent Engine
+deployment, not the live Cloud Run gateway — a real dependency version
+conflict, not a design choice. Details in `agent_engine/README.md`.
 
 ## How it works
 
@@ -153,76 +152,53 @@ submission video is built around.
 ## The dashboard — trigger it, watch it, from one screen
 
 `http://localhost:8080/` is a live console, not a log viewer — four
-pill-shaped columns, left to right, each themed independently via CSS
-custom properties:
+columns, left to right, updating in real time off one live event
+stream:
 
-- **App** (light, warm, left edge) — trip pills are the input *and*
-  the trigger: click a route (`POST /v1/trips/run`) to start an
-  orchestrated trip, no terminal needed. Below the pills: plain-language
-  status for the employee booking the trip, including the recovery
-  moment ("Recovering — routing through payment_agent…").
-- **Live agent trace** (dark, upper-middle) — a numbered grid of
-  compact cards (agent, tool, stage/decision) in call order,
-  orchestrator recovery decisions numbered alongside the calls they
-  followed. Full detail — rationale, reviewed-by, Model Armor
-  template, signed token — lives in a shared hover popover.
-- **Transactions** (navy, lower-middle, independently scrollable) —
-  one card per trip. The Calls/Allowed/Blocked/Escalated counts are
-  computed from these cards' own steps, not the raw audit ledger, so
-  the two can't drift apart. Each card's step order is a row of pills
-  colored by decision (green allow / red block / violet escalate
-  diamond for orchestrator calls); **hover a pill** for its full
-  record — agent, tool, args, rationale, copyable signed token — read
-  from the persisted `TransactionStep`, never a stale reconstruction.
-  **Clicking the card** replays the trip in the trace panel above; the
-  filter tabs highlight matching pills across cards instead of hiding
-  any.
-- **Google Platform** (Google's real light brand palette — the same
-  hexes Console/Search/Workspace use) — one entry per real touch of
-  Google or Warden infrastructure per call: registry permission check,
-  Gemini calls (triage + review), Model Armor screening when active,
-  the ledger write, token signing, the orchestrator's decision. Every
-  entry is a real backend event (`warden/gateway.py`'s
-  `events.publish(...)`), including a dedicated `stage="registry"`
-  event so "permission check" maps to a real `_registry.get()` lookup.
-  Registry entries and the static Agent Identity/Memory Bank block are
-  highlighted green — the access-control side of the feed. That static
-  block is real but out of this live call path (Cloud Run runs the
-  reviewer in-process, under the default compute service account) and
-  points to `agent_engine/`, where Identity and Memory Bank are
-  independently verified live.
-- One `GET /v1/events` Server-Sent Events stream drives everything
-  above; `/v1/log` and `/v1/transactions` are only used once, on page
-  load, to backfill history.
+- **App** — click a trip pill to start a real orchestrated run, no
+  terminal needed. Shows what the employee booking the trip would
+  see, including the live recovery moment.
+- **Live agent trace** — every call, in order, as a compact card with
+  its decision. Orchestrator recovery decisions appear inline with
+  the calls that triggered them.
+- **Transactions** — one card per trip, scrollable. Each card is a row
+  of pills, one per step, colored by decision (allow / block /
+  escalate); hover a pill for the full record — rationale,
+  reviewed-by, signed token. Click a card to replay it above. The
+  Calls/Allowed/Blocked/Escalated counts always sum from these cards,
+  so they can't drift from what's on screen.
+- **Google Platform** — one entry per real touch of Google
+  infrastructure per call: registry check, Gemini calls, Model Armor
+  screening, ledger write, token signing, orchestrator decision.
+  Registry checks and a static Agent Identity/Memory Bank reference
+  are highlighted green as the access-control side of the feed —
+  Identity and Memory Bank themselves run on the separate Agent Engine
+  deployment, not this live call path.
 
 ## Local vs. cloud — one codebase, config-driven
 
-`warden/` is the same code, same `Agent` definitions, whether it's
-running on your laptop or on the deployed Cloud Run service — what
-changes is entirely which environment variables are set. That's
-deliberate (see "Same agent code, three swappable backends" on
-[the architecture page](https://akashgoyal.github.io/aiml/blog/warden-architecture.html)):
-two copies of the guardrail/triage/review/orchestrator logic to keep
-in sync is exactly the drift this project's whole premise argues
-against.
+Same code, same agents, whether it's running on your laptop or on the
+deployed Cloud Run service — only the environment variables change.
+Deliberate: two copies of the guardrail/triage/review/orchestrator
+logic to keep in sync is exactly the drift this project argues
+against. See "Same agent code, three swappable backends" on
+[the architecture page](https://akashgoyal.github.io/aiml/blog/warden-architecture.html).
 
-The one genuine exception is `agent_engine/` — a real second codebase
-with its own `.venv`, because it needs a `google-adk` version the main
-app's pinned dependency can't satisfy (see `agent_engine/README.md`).
-Everything else below is one app, four ways to configure it:
+The one real exception is `agent_engine/`, a separate deployment with
+its own dependencies (it needs a newer ADK version than the main app).
+Everything else is one app, configured four ways:
 
-| Where / how | `MODEL_BACKEND` | Required vars | Optional vars | Notes |
-|---|---|---|---|---|
-| **Local, default** | `ollama` | — | `OLLAMA_TRIAGE_MODEL`, `OLLAMA_REVIEW_MODEL`, `OLLAMA_HOST` | Needs `ollama serve` running; zero API key, zero GCP project |
-| **Local or cloud, AI Studio** | `gemini` | `GOOGLE_API_KEY` | `GEMINI_MODEL`, `GEMMA_MODEL` | What's actually deployed on Cloud Run; genuine free tier |
-| **Local or cloud, Vertex + Model Armor** | `vertex` | `GOOGLE_CLOUD_PROJECT` | `VERTEX_LOCATION`, `MODEL_ARMOR_PROMPT_TEMPLATE`, `MODEL_ARMOR_RESPONSE_TEMPLATE` | Run `scripts/setup_model_armor.sh` once first; no free tier — billed from the first token |
-| **Firestore-backed registry/ledger** (any backend above) | — | `GOOGLE_CLOUD_PROJECT` | `FIRESTORE_DATABASE` | Leave `GOOGLE_CLOUD_PROJECT` blank for local dev — both fall back to in-memory automatically |
-| **Cloud Run deploy itself** | `gemini` (hardcoded in the script) | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_API_KEY`, `WARDEN_SECRET_KEY` | — | Set via `scripts/deploy_cloud_run.sh`'s `--set-env-vars`/`--set-secrets`, not `.env` — the deployed container never reads a `.env` file |
-| **Agent Engine** (`agent_engine/`, separate venv) | n/a — its own script | `GOOGLE_CLOUD_PROJECT` | `VERTEX_LOCATION`, `AGENT_ENGINE_MODEL`, `AGENT_ENGINE_STAGING_BUCKET` | Isolated `google-adk>=1.5.0`; see "Cost" in `agent_engine/README.md` before leaving it deployed |
+| Setup | `MODEL_BACKEND` | Needs | Notes |
+|---|---|---|---|
+| **Local, default** | `ollama` | Ollama running locally | Free, no API key, no GCP project |
+| **AI Studio** | `gemini` | `GOOGLE_API_KEY` | What's deployed on Cloud Run; genuine free tier |
+| **Vertex + Model Armor** | `vertex` | `GOOGLE_CLOUD_PROJECT` | One-time setup script; billed from the first token, no free tier |
+| **Firestore-backed storage** | any of the above | `GOOGLE_CLOUD_PROJECT` | Leave blank for local dev — falls back to in-memory automatically |
+| **Cloud Run deploy** | `gemini` | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_API_KEY`, `WARDEN_SECRET_KEY` | Set at deploy time, not via `.env` |
+| **Agent Engine** | n/a | `GOOGLE_CLOUD_PROJECT` | Its own isolated environment; check its cost note before leaving it deployed |
 
-`WARDEN_SECRET_KEY` and `PORT` apply everywhere. `WARDEN_STUB_MODE=true`
-skips every model backend (deterministic decisions, no network calls) —
-what `make test` runs under, regardless of `MODEL_BACKEND`.
+`WARDEN_SECRET_KEY` and `PORT` apply everywhere. Tests always run in
+stub mode — deterministic, no network calls, regardless of backend.
 
 ## Quickstart — local models first, cloud later
 
