@@ -140,33 +140,34 @@
   .col-txns .stats { grid-template-columns: repeat(2, 1fr); }
   .col-txns .col-pill-body { padding-top: 14px; }
 
-  /* ---------- column 4: Google Platform — Google's own brand palette ---------- */
-  /* The dark-mode variants of Google's actual four brand colors (the ones
-     Material dark themes use, not the flat light-mode hexes) — blue for
-     the platform accent, and the other three doing the same allow/block/
-     escalate duty they do everywhere else in this dashboard, just drawn
-     from Google's palette instead of the neutral one. This is the one
-     column whose whole point is "this touched Google's infrastructure,"
-     so it's the one column that gets to look like it. */
+  /* ---------- column 4: Google Platform — Google's own light theme ---------- */
+  /* Three columns already read dark-console; recoloring Platform's
+     accents while keeping a dark shell (the first attempt) still reads
+     as "another dark panel" at a glance. Google's own products —
+     Console, Search, Workspace — are light-themed with these exact
+     colors, so a light surface here is what actually makes this one
+     column unmistakably "Google" instead of "dark panel, blue-ish." The
+     four hexes below are Google's real flat brand colors, not a
+     dark-mode reinterpretation. */
   .col-platform {
-    --bg: #0c1220;
-    --surface: #14203a;
-    --surface-2: #192848;
-    --line: #2a3f66;
-    --line-soft: #1f3252;
-    --ink: #eaf0fc;
-    --ink-soft: #a9bfe8;
-    --ink-faint: #62789f;
-    --accent: #8ab4f8;
-    --accent-ink: #062043;
-    --accent-tint: rgba(138, 180, 248, 0.18);
-    --allow: #81c995;
-    --allow-tint: rgba(129, 201, 149, 0.16);
-    --block: #f28b82;
-    --block-tint: rgba(242, 139, 130, 0.16);
-    --escalate: #fdd663;
-    --escalate-tint: rgba(253, 214, 99, 0.18);
-    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 16px 40px -20px rgba(0,0,0,.75);
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f1f3f4;
+    --line: #dadce0;
+    --line-soft: #e8eaed;
+    --ink: #202124;
+    --ink-soft: #5f6368;
+    --ink-faint: #80868b;
+    --accent: #4285f4;
+    --accent-ink: #ffffff;
+    --accent-tint: rgba(66, 133, 244, 0.1);
+    --allow: #1e8e3e;
+    --allow-tint: rgba(52, 168, 83, 0.12);
+    --block: #d93025;
+    --block-tint: rgba(234, 67, 53, 0.1);
+    --escalate: #f29900;
+    --escalate-tint: rgba(251, 188, 5, 0.16);
+    --shadow: 0 1px 2px rgba(60,64,67,.1), 0 1px 6px rgba(60,64,67,.12);
   }
   /* The classic four-color strip, abstracted (never the literal logo) —
      just a signal, under the title, that this lane is Google's palette. */
@@ -177,7 +178,7 @@
     height: 3px;
     width: 46px;
     border-radius: 2px;
-    background: linear-gradient(90deg, #8ab4f8 0 25%, #f28b82 25% 50%, #fdd663 50% 75%, #81c995 75% 100%);
+    background: linear-gradient(90deg, #4285f4 0 25%, #ea4335 25% 50%, #fbbc05 50% 75%, #34a853 75% 100%);
   }
 
   /* ---------- top bar ---------- */
@@ -288,17 +289,27 @@
   .plat-entry.warn .plat-icon { background: var(--block-tint); color: var(--block); border-color: var(--block); }
   .plat-entry.armor .plat-icon { background: var(--allow-tint); color: var(--allow); border-color: var(--allow); }
   .plat-entry.runtime .plat-icon { background: var(--escalate-tint); color: var(--escalate); border-color: var(--escalate); }
+  /* Registry/permission-check entries get the full card highlighted, not
+     just the icon — this is the Agent Registry doing the zero-trust
+     access-control check every other "Agent Identity" example lives
+     next to, so it's the one live entry worth making impossible to miss. */
+  .plat-entry.registry { background: var(--allow-tint); border-color: var(--allow); }
+  .plat-entry.registry .plat-icon { background: var(--allow); color: var(--accent-ink); border-color: var(--allow); }
+  .plat-entry.registry .plat-label { color: var(--allow); }
 
+  /* Agent Identity + Memory Bank — same green highlight as .plat-entry.
+     registry: both are the zero-trust / access-control side of "Google
+     Platform," so they read as one family, not one live and one muted. */
   .plat-static {
     margin-top: 4px;
     padding: 12px 13px;
-    background: var(--surface-2);
-    border: 1px dashed var(--line-strong, var(--line));
+    background: var(--allow-tint);
+    border: 1px solid var(--allow);
     border-radius: 10px;
   }
-  .plat-static-title { font-weight: 600; font-size: 12px; display: flex; align-items: center; gap: 6px; }
-  .plat-static-body { font-size: 11px; color: var(--ink-faint); margin-top: 5px; line-height: 1.5; }
-  .plat-static-body code { font-family: var(--font-mono); background: var(--bg); border-radius: 4px; padding: 1px 5px; }
+  .plat-static-title { font-weight: 600; font-size: 12px; color: var(--allow); display: flex; align-items: center; gap: 6px; }
+  .plat-static-body { font-size: 11px; color: var(--ink-soft); margin-top: 5px; line-height: 1.5; }
+  .plat-static-body code { font-family: var(--font-mono); background: var(--surface); border-radius: 4px; padding: 1px 5px; }
 
   /* the single shared popover — one node's content at a time */
   .step-popover {
@@ -786,7 +797,7 @@ function wardenApp() {
       // warden/gateway.py's _process_call for the matching events.publish().
       if (evt.stage === 'registry') {
         this.pushPlatform(
-          evt.status === 'found' ? 'ok' : 'warn', '🗂️', 'Agent Registry · permission check',
+          evt.status === 'found' ? 'registry' : 'warn', '🗂️', 'Agent Registry · permission check',
           `${evt.agent_id} — ${evt.status === 'found' ? 'scope found' : 'not registered'}`
         );
       }
