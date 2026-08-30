@@ -1,0 +1,20 @@
+# Isolated on purpose — separate venv, separate pin from the main
+# project's requirements.txt. vertexai.agent_engines.AdkApp requires
+# google-adk>=1.5.0; the main warden/ path pins google-adk==1.1.1
+# deliberately (that exact pin is what fixed a 25-30min Cloud Build hang
+# from pip's resolver backtracking — see requirements.txt's own comment).
+# Bumping the shared dependency to satisfy this would risk destabilizing
+# the already-verified-working Cloud Run path, so this gets its own venv:
+#
+#   cd agent_engine && python3.12 -m venv .venv
+#   .venv/bin/pip install -r requirements.txt
+#   GOOGLE_CLOUD_PROJECT=... .venv/bin/python -m deploy_reviewer
+#
+google-adk>=1.5.0
+google-cloud-aiplatform[agent_engines]
+cloudpickle
+python-dotenv
+# Just enough of warden/ to import reviewer_agent.py for its real
+# _INSTRUCTION constant (warden.config -> pydantic_settings), without
+# pulling in the rest of the main app's pinned dependency set.
+pydantic-settings

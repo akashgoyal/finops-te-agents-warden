@@ -34,6 +34,28 @@ task-bounded authorization for what an agent is allowed to spend and on
 what. Warden is a small, working version of that idea, scoped to the
 workflow every finance org already has a policy for — travel and expense.
 
+## Fortified Enterprise Fleet — mapped against the named components
+
+The track names specific infrastructure pieces an enterprise agent fleet
+needs. Here's what covers each, and what actually backs it — verified by
+reading imports and, for the cloud pieces, by running them live, not by
+matching a name to a description:
+
+| Named component | Status | Warden file | Google package/tech |
+|---|---|---|---|
+| **Agent Gateway** — unified routing, policy enforcement | Core of the system | `warden/gateway.py` | Runs on Cloud Run; calls `google-adk`/`google-genai` for review |
+| **Agent Registry** — publish/version/discover approved agents | Built | `warden/registry.py` | `google.cloud.firestore` |
+| **Agent Runtime** — long-running async execution | Built | `orchestrator.py` + `gateway.py`'s `BackgroundTasks` | `google.adk.runners.InMemoryRunner` for the agent turns |
+| **Model Armor** — inline guardrails, prompt injection/PII | Built, verified live | `reviewer_agent.py`'s `_generate_content_config()` | `google.genai.types.ModelArmorConfig`, via Vertex AI |
+| **Agent Identity** — zero-trust, cryptographic per-agent identity | Built, verified live | `agent_engine/deploy_reviewer.py` | `vertexai.agent_engines` — deployed resource's `effectiveIdentity` is its own dedicated IAM service account |
+| **Memory Bank** — persistent cross-session context | Built, verified live | same Agent Engine deployment | Auto-provisioned `contextSpec.memoryBankConfig` on the same resource — not a separate integration |
+| **Agent Observability** — OTel-compliant audit + reasoning traces | Partial | `ledger.py` (audit trail) + `events.py` (live trace) | Firestore-backed audit trail is real; `AdkApp(enable_tracing=True)` is configured on the Agent Engine deployment but Cloud Trace export wasn't confirmed in testing |
+
+`agent_engine/` is deliberately a separate, additive deployment — not
+wired into the live Cloud Run gateway's call path. See
+`agent_engine/README.md` for why (a real `google-adk` version conflict
+with the pinned Cloud Run deployment) and exactly what was verified.
+
 ## How it works
 
 ```mermaid
@@ -290,6 +312,8 @@ demo/
 dashboard/static/     live console — trip pills, traveler view, agent trace, transactions, ledger
 scripts/               GCP setup + Cloud Run deploy + optional Model Armor setup
 tests/                  stub-mode tests, no network calls
+agent_engine/         isolated venv + script: deploys the reviewer to Vertex AI
+                        Agent Engine for a real Agent Identity + Memory Bank
 ```
 
 ## Known gaps (honest, for the writeup)
@@ -312,13 +336,13 @@ tests/                  stub-mode tests, no network calls
   code issue), so it can't independently satisfy the hackathon's
   "Gemini 3.5+" requirement the way the deployed `gemini` (AI Studio)
   backend already does.
-- **Agent Identity** (Vertex AI Agent Engine's cryptographic per-agent
-  identity) was scoped out after checking what it actually requires: it
-  means deploying agents onto Agent Engine's own managed runtime, not
-  something layered onto a self-hosted app — a different hosting model
-  from Warden's Cloud Run deployment, not a toggle. `auth_token.py`'s
-  hand-rolled signed tokens stay as the stand-in for what that would
-  provide.
+- **Agent Observability**: the audit ledger (hash-chained Firestore) and
+  live SSE trace are a real, working audit trail, but not
+  OpenTelemetry-compliant — `agent_engine/`'s deployment does set
+  `AdkApp(enable_tracing=True)` (confirmed on the deployed resource's own
+  spec), but a Cloud Trace query for this project came back empty after a
+  real call and a wait, with the Trace API confirmed enabled. Reported as
+  configured, not confirmed — see `agent_engine/README.md`.
 - `gemma2:2b` turned out to be genuinely too small for the reviewer role,
   not just noisy — as the fleet grew to 5 agents / 5 policy sections, it
   aborted 3 real orchestrated trips in a row, hallucinating blocks on
