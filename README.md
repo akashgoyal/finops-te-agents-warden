@@ -120,46 +120,56 @@ submission video is built around.
 
 ## The dashboard — trigger it, watch it, from one screen
 
-`http://localhost:8080/` isn't a log viewer, it's a live console:
+`http://localhost:8080/` isn't a log viewer, it's a live console — four
+independent pill-shaped columns, left to right, each its own capsule card
+with its own palette (override the CSS custom properties on the
+container, every component underneath just re-tokens automatically):
 
-Three columns, three palettes on purpose — each scoped the same way
-(override the CSS custom properties on the container, every component
-underneath just re-tokens automatically): a warm light traveler-facing
-rail, a neutral-dark live trace, and a cool-navy transactions panel with
-its own blue accent, so the two dark columns still read as genuinely
-different zones instead of blending into one continuous surface. Semantic
-colors (allow/block/escalate) stay consistent everywhere — only the
-ground and the accent shift per zone.
-
-- **Left — Traveler app**, flush to the edge. **Trip pills are the input
-  *and* the trigger** — click a route (`POST /v1/trips/run`) and the
+- **App** (light, warm) — flush to the left edge. **Trip pills are the
+  input *and* the trigger** — click a route (`POST /v1/trips/run`) and the
   orchestrated trip starts, no terminal needed. Below the pills: what an
   employee booking the trip would see, in plain language, including the
   recovery moment ("Recovering — routing through payment_agent…").
-- **Center — pipeline strip + Live agent trace**: every stage (guardrail
-  → triage → review) as it happens, plus the orchestrator's own decision
-  as a distinct entry, not folded into a call.
-- **Right — stats + Transactions**, one card per trip. The agent order on
-  each card is a linked list, not plain text — one named pill per executed
-  step (the actual agent name, not an abstract dot), in the order it
-  actually ran, colored by its own decision (green allow / red block /
-  violet escalate, a distinct diamond pill for an orchestrator decision).
-  **Hover one pill** to see that step's full content — agent, tool,
-  decision, the actual call args (amounts, IDs, whatever it was called
-  with), rationale, reviewed-by, a copyable signed token — in a floating
-  popover, read from the persisted `TransactionStep` record. Hover a
-  different pill, see a different agent; nothing else on the card changes
-  state, which is the point — inspect one agent at a time, not the whole
-  trip at once. A transaction that finishes mid-session gets its steps
-  refetched from the backend rather than trusted to whatever was pieced
-  together live, so hovering never shows a stale or partial reconstruction.
-  **Clicking** the card (not a pill) replays the
-  whole trip in the center trace panel instead, for the fuller view;
-  "← Back to live" returns to the current run, and starting a new trip
-  does the same automatically. The filter tabs (All/Allow/Block/Escalate)
-  don't hide cards — they highlight the matching pills across every card
-  and dim the rest, so you can spot every blocked step in a session at a
-  glance without losing the trip context each one happened in.
+- **Live agent trace** (neutral dark, upper half of the middle lane) — a
+  numbered grid, not a vertical list: cards flow left-to-right and wrap,
+  each tagged with its position in the call sequence (1, 2, 3…),
+  orchestrator recovery decisions numbered right alongside the calls they
+  followed. Cards stay compact — agent, tool, stage dots or decision pill
+  — full detail (rationale, reviewed-by, Model Armor template, signed
+  token) lives in a shared hover popover instead.
+- **Transactions** (cool-navy, lower half of the same lane, independently
+  scrollable) — one compact card per trip. The Calls/Allowed/Blocked/
+  Escalated counts above the list are a single line, and they're computed
+  from these transactions' own steps, not the raw audit ledger — the two
+  can't drift apart, because the count *is* a sum over what the cards
+  show, not a second independent tally of a different dataset. The agent
+  order on each card is a linked list, not plain text — one named pill
+  per executed step, colored by its own decision (green allow / red
+  block / violet escalate, a distinct diamond pill for an orchestrator
+  decision). **Hover one pill** for that step's full content — agent,
+  tool, args, rationale, reviewed-by, a copyable signed token — read from
+  the persisted `TransactionStep` record, so it never shows a stale or
+  partial live reconstruction. **Clicking** the card (not a pill) replays
+  the whole trip in the trace panel above instead; the filter tabs
+  (All/Allow/Block/Escalate) don't hide cards — they highlight the
+  matching pills across every card and dim the rest.
+- **Google Platform** (Google's own light brand palette — blue/red/
+  yellow/green, the same hexes Console/Search/Workspace use) — one entry
+  per real touch of Google or Warden's own infrastructure per call:
+  registry permission check, the Gemini API calls (triage + review),
+  Model Armor screening when active, the Firestore ledger write, token
+  signing, the orchestrator's recovery decision. Every entry comes from
+  an actual backend event, not something inferred for the UI — see
+  `warden/gateway.py`'s `events.publish(...)` calls, including a
+  dedicated `stage="registry"` event added specifically so "permission
+  check" corresponds to a real `_registry.get()` lookup. Agent Registry
+  entries and the static Agent Identity/Memory Bank reference block are
+  both highlighted green — the access-control side of this column, kept
+  visually distinct from the rest of the feed. Agent Identity and Memory
+  Bank themselves aren't part of this live call path (Cloud Run runs the
+  reviewer in-process, under the default compute service account) — the
+  static block says so and points to `agent_engine/`, where they're real
+  and independently verified.
 - Everything above is driven by one `GET /v1/events` Server-Sent Events
   stream — `warden/events.py` is a simple in-process pub/sub that the
   gateway publishes to at every stage, not just the final decision.
@@ -340,7 +350,7 @@ demo/
   trips.py                route presets (the dashboard's pills) + the call plan per trip
   fleet_agents.py           the five demo agents + their mock tools
   run_demo.py                 CLI runner — same orchestrated trip the dashboard's pills trigger
-dashboard/static/     live console — trip pills, traveler view, agent trace, transactions, ledger
+dashboard/static/     live console — four pill columns: app, trace, transactions, Google Platform
 scripts/               GCP setup + Cloud Run deploy + optional Model Armor setup
 tests/                  stub-mode tests, no network calls
 agent_engine/         isolated venv + script: deploys the reviewer to Vertex AI
