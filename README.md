@@ -14,12 +14,12 @@ track). Runs entirely on Google's free tier — see [Cost](#cost) below.
 Cloud Run, backed by real Gemini/Gemma (not stub mode), Firestore-backed
 registry and ledger. Click a trip pill to trigger a real orchestrated run.
 
-**Architecture diagram**: [`docs/architecture.html`](docs/architecture.html)
-— open it in a browser (or view it live at
-https://claude.ai/code/artifact/18caf45b-93c6-4c8d-8986-4b51f3af1b0c) for
-the full request-flow diagram, the backend-swap comparison, and the
-Google Cloud stack breakdown. The Mermaid flowchart just below is the
-quick version.
+**Architecture diagram**: maintained on the blog, not in this repo —
+https://akashgoyal.github.io/aiml/blog/warden-architecture.html — the
+full request-flow diagram, two scenario walkthroughs (breaching the
+spend limit, breaching access scope), the backend-swap comparison, and
+the Google Cloud stack breakdown. The Mermaid flowchart just below is
+the quick version.
 
 ## Why
 
@@ -183,7 +183,7 @@ same code, same imports, same `Agent` definitions either way. What changes
 between running it on your laptop and running the deployed Cloud Run
 service is entirely which environment variables are set. That's a
 deliberate architectural choice (see "Same agent code, three swappable
-backends" in [`docs/architecture.html`](docs/architecture.html)), not a
+backends" on [the architecture page](https://akashgoyal.github.io/aiml/blog/warden-architecture.html)), not a
 gap — duplicating the app into two folders would mean two copies of the
 guardrail/triage/review/orchestrator logic to keep in sync, which is
 exactly the kind of drift this project's whole premise argues against.
