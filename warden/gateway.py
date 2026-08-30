@@ -96,6 +96,10 @@ def _process_call(
     })
 
     scope = _registry.get(request.agent_id)
+    events.publish({
+        "call_id": call_id, "transaction_id": transaction_id, "stage": "registry",
+        "status": "found" if scope else "not_found", "agent_id": request.agent_id,
+    })
 
     events.publish({"call_id": call_id, "transaction_id": transaction_id, "stage": "guardrail", "status": "checking"})
     hard_limit = check_hard_limits(request, scope)
