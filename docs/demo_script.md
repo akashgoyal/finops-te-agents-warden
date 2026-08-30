@@ -21,7 +21,7 @@ can't be cut.
 
 ---
 
-## 0:00–0:20 — The problem
+## 0:00–0:15 — The problem
 
 **Screen:** 2 seconds each on real news screenshots (see sourcing note
 below), then cut to face-to-camera or a title card.
@@ -44,7 +44,7 @@ below), then cut to face-to-camera or a title card.
 
 ---
 
-## 0:20–0:35 — Value proposition
+## 0:15–0:30 — Value proposition
 
 **Screen:** the architecture page's Figure 1 (the pipeline image), or
 straight to the live dashboard if you'd rather cut a beat.
@@ -58,7 +58,7 @@ straight to the live dashboard if you'd rather cut a beat.
 
 ---
 
-## 0:35–1:50 — Demo of the app in action (the centerpiece, ~75s)
+## 0:30–1:35 — Demo of the app in action (the centerpiece, ~65s)
 
 **Screen:** the live Cloud Run URL, in a real browser tab —
 **say the URL out loud once here.**
@@ -94,7 +94,7 @@ lookups, real Gemini API calls, nothing simulated.
 
 ---
 
-## 1:50–2:30 — Proof this is really on Google Cloud (required, ~40s)
+## 1:35–2:10 — Proof this is really on Google Cloud, part 1: Cloud Run (required, ~35s)
 
 **This is the segment the hackathon page explicitly requires — don't
 cut it for time.** See the exact GCP Console links to have ready,
@@ -118,20 +118,49 @@ log lines from the trip you just ran (timestamps should match).
 > "Real request logs from the run you just watched — not a local
 > server standing in for this."
 
-*(Optional, if time allows: switch to Firestore Console and show the
-`transactions` / `audit_log` collections with the documents this run
-just wrote — a second, independent confirmation it's live.)*
+---
+
+## 2:10–2:40 — Proof, part 2: Agent Identity + Memory Bank on Vertex AI (~30s)
+
+**Action:** switch to Cloud Logging, filtered to the
+`reasoningEngines` resource (link below), or run the verification
+snippet live in a terminal (`agent_engine/README.md` has it) — either
+shows the same thing.
+
+**Say:**
+> "One more piece of proof, on Vertex AI specifically: I deployed this
+> same reviewer to Agent Engine and read the live resource's own spec
+> back — it's running under its own dedicated IAM identity, not a
+> shared service account, and it has a Memory Bank for persistent
+> context, automatically. Not configuration I wrote — this is what
+> Vertex AI provisions the moment you deploy an agent there."
+
+**Action (if showing the terminal instead of/alongside Console):** run
+the verification query live, let the real `BLOCK` decision print on
+screen.
+
+> **Reminder — do this right after recording, not later:** this
+> resource doesn't scale to zero like Cloud Run. Delete it once the
+> take is in the can:
+> ```
+> cd agent_engine && GOOGLE_CLOUD_PROJECT=finops-te-agent-warden .venv/bin/python -c "
+> import vertexai
+> from vertexai import agent_engines
+> vertexai.init(project='finops-te-agent-warden', location='us-central1')
+> agent_engines.delete('projects/330594494974/locations/us-central1/reasoningEngines/6509220436864139264', force=True)
+> "
+> ```
 
 ---
 
-## 2:30–2:50 — Close
+## 2:40–2:55 — Close
 
 **Screen:** GitHub repo, or the architecture page.
 
 **Say:**
 > "Warden: an authorization gateway for an agentic fleet, built on
-> Gemini, ADK, Cloud Run, and Firestore, that fails closed instead of
-> failing open. Repo and live link are below."
+> Gemini, ADK, Cloud Run, Firestore, and Vertex AI, that fails closed
+> instead of failing open. Repo and live link are below."
 
 **On-screen end card:** GitHub URL, live Cloud Run URL.
 
@@ -148,43 +177,59 @@ on a cold page load mid-take.
    `https://console.cloud.google.com/run/detail/us-central1/warden/logs?project=finops-te-agent-warden`
 3. **Cloud Run revisions tab** (alternative/backup — shows the specific revision serving traffic):
    `https://console.cloud.google.com/run/detail/us-central1/warden/revisions?project=finops-te-agent-warden`
-4. **Firestore data browser** (optional second proof — transactions/audit_log collections):
+4. **Firestore data browser** (optional third proof — transactions/audit_log collections):
    `https://console.cloud.google.com/firestore/databases/-default-/data/panel?project=finops-te-agent-warden`
-5. **The live URL itself** (say it out loud in the demo segment):
+5. **Vertex AI Agent Engine resource** (best-guess Console path — Console
+   navigation for this specific product wasn't verified with a live login
+   this session, so treat this as a starting point, not a sure thing):
+   `https://console.cloud.google.com/vertex-ai/agents/agent-engines/6509220436864139264?project=finops-te-agent-warden`
+   — **fallback if that 404s:** use Console's top search bar, type
+   "Agent Engine" or "Reasoning Engine", or the Cloud Logging link below
+   instead, which *is* verified (it's what `gcloud`/the deploy script
+   itself printed when the resource was created):
+   `https://console.cloud.google.com/logs/query;query=resource.labels.reasoning_engine_id%3D%226509220436864139264%22?project=finops-te-agent-warden`
+6. **The live URL itself** (say it out loud in the demo segment):
    `https://warden-330594494974.us-central1.run.app` (or the equivalent
    `https://warden-5eio2cxkqa-uc.a.run.app` — both resolve to the same
    service; confirmed live moments ago)
 
-**If a deep link above 404s or looks stale** (Console URLs shift
+**If the Cloud Run deep links 404 or look stale** (Console URLs shift
 occasionally): go to `console.cloud.google.com/run`, select project
 `finops-te-agent-warden`, click into the `warden` service manually —
 same destination, zero risk of showing a broken link on camera.
 
-**Not included above — Vertex AI Agent Engine (Agent Identity/Memory
-Bank):** that resource was deleted after verification earlier (it
-doesn't scale-to-zero like Cloud Run, so it was torn down to avoid
-ongoing cost). If you want to show it live, redeploy first —
-`agent_engine/README.md` has the exact steps — and delete it again
-right after recording. Given the current 3-minute budget, this isn't
-in the timed script above; the Cloud Run + Firestore proof already
-satisfies the requirement on its own.
+**Agent Engine resource, redeployed for this video**: currently live at
+`projects/330594494974/locations/us-central1/reasoningEngines/6509220436864139264`,
+verified working (`effectiveIdentity` is a dedicated IAM service
+account, `memoryBankConfig` present, a live query returns the correct
+`BLOCK` decision). **Delete it right after recording** — see the
+reminder in the 2:10–2:40 segment above; it's the one piece of this
+project's infrastructure that doesn't scale to zero.
 
 ## Shot list summary
 
-1. Real news screenshots → talking head (0:20)
+1. Real news screenshots → talking head (0:15)
 2. Value prop, brief (0:15)
-3. **Live dashboard: click AUS → CHI, full trip uninterrupted** (1:15) — protect this take
-4. **GCP Console: Cloud Run overview → Logs tab** (0:40) — required, don't cut
-5. Close card (0:20)
+3. **Live dashboard: click AUS → CHI, full trip uninterrupted** (1:05) — protect this take
+4. **GCP Console: Cloud Run overview → Logs tab** (0:35) — required, don't cut
+5. **Agent Engine proof: Console/Logs or live terminal query** (0:30)
+6. Close card (0:15)
 
 ## Notes
 
-- Sums to ~2:50 — 10s of margin under the 3:00 target.
-- Record the GCP Console segment as its own clean take, right after
-  finishing a live trip, so the log timestamps visibly match what was
-  just demoed on screen.
+- Sums to ~2:55 — 5s of margin under the 3:00 target. Tight; if a take
+  runs long, trim the live-run narration first (segment 3), not the
+  two GCP-proof segments.
+- Record the Cloud Run Console segment as its own clean take, right
+  after finishing a live trip, so the log timestamps visibly match
+  what was just demoed on screen.
+- The Agent Engine resource link above (`agent-engines/...`) is an
+  educated guess at the current Console path for this specific,
+  fast-moving product — confirm it resolves *before* you're recording,
+  not during. The Cloud Logging link and the live terminal query are
+  both verified working right now and make a safe fallback or
+  replacement for that whole segment.
 - If you want the longer, more architecture-detailed cut instead of
-  this one, the previous draft is in git history (commit `53ec929`) —
-  it covers the backend-swap design and the Agent Engine
-  Identity/Memory Bank verification in more depth, but runs ~4:05 and
-  doesn't include the GCP Console proof segment this version adds.
+  this one, an earlier draft is in git history (commit `53ec929`) —
+  covers the backend-swap design in more depth, runs ~4:05, predates
+  the GCP Console proof segments this version adds.
