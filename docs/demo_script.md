@@ -20,9 +20,25 @@ that one.
 
 ---
 
-## 0:00–0:20 — Hook: the problem, not the product
+## 0:00–0:25 — Hook: the problem, not the product
 
-**Screen:** black slide or your face to camera, no UI yet.
+**Screen:** 2–3 seconds each on real screenshots of actual news
+coverage, then cut to face-to-camera or a title card.
+
+> **Sourcing note — read before recording:** these must be genuine
+> screenshots of real, published articles that you capture yourself
+> (full-screen a real browser tab, no mockups, no recreated headlines).
+> Two candidates already checked and real:
+> - Gym-booking exploit: [Fox News](https://www.foxnews.com/tech/ai-agent-hacks-gym-system-move-up-waitlist)
+>   or [SC Media](https://www.scworld.com/brief/ai-agent-exploits-gym-booking-system-vulnerability)
+> - Agent exploiting infrastructure: [The Hacker News](https://thehackernews.com/2026/07/openai-agent-used-exposed-credentials.html)
+>   (OpenAI agent / Hugging Face breach), or the primary technical
+>   writeup on [Hugging Face's own blog](https://huggingface.co/blog/agent-intrusion-technical-timeline)
+>
+> Don't caption these as "this is what Warden prevents" — they're
+> different systems, different failure modes. They establish that the
+> *category* of risk (an agent overstepping what it was actually
+> authorized to do) is real and current, which is all the hook needs.
 
 **Say:**
 > "In 2026, corporate agent fleets started getting real spending
@@ -30,13 +46,28 @@ that one.
 > booking system. Agents were caught exploiting their own
 > infrastructure. The fix everyone from Google's Agent Payments
 > Protocol to NIST is converging on is the same: verifiable,
-> task-bounded authorization for what an agent can spend, and on what.
-> This is Warden — a working version of that idea, for the workflow
-> every finance org already has a policy for: travel and expense."
+> task-bounded authorization for what an agent can spend, and on what."
 
 ---
 
-## 0:20–0:55 — Architecture, fast (30–35s)
+## 0:25–0:45 — Google's toolkit: how this is actually solvable
+
+**Screen:** a clean text/logo slide, or the README's Fortified
+Enterprise Fleet component table — Gemini, ADK, Cloud Run, Firestore,
+Vertex AI (Model Armor, Agent Identity, Memory Bank) listed plainly.
+
+**Say:**
+> "Google's own stack already has every piece this needs: Gemini for
+> the actual judgment calls, the Agent Development Kit to build agents
+> that reason and act, Cloud Run and Firestore for always-on
+> infrastructure, and on Vertex AI — Model Armor for inline screening,
+> Agent Identity and Memory Bank for zero-trust, stateful agents. The
+> tools exist. The question is how you actually wire them into
+> something a Finance team could trust. That's Warden."
+
+---
+
+## 0:45–1:15 — Architecture, fast (25–30s)
 
 **Screen:** `docs/architecture.html` (or the published Artifact) —
 Figure 1, the request-flow diagram. Cursor traces the path as you talk.
@@ -56,13 +87,13 @@ Figure 1, the request-flow diagram. Cursor traces the path as you talk.
 > Ollama locally, Gemini in production, or Vertex AI with Model Armor
 > screening attached, just by changing one setting."
 
-*(This single breath covers: ADK, Gemini 3.5 Flash, Cloud Run,
-Firestore — all four hackathon-required technologies — before the demo
-even starts.)*
+*(Between the toolkit beat and this one, all four hackathon-required
+technologies — Gemini 3.5 Flash, ADK, Cloud Run, Firestore — are named
+before the demo even starts.)*
 
 ---
 
-## 0:55–1:10 — Open the live dashboard
+## 1:15–1:30 — Open the live dashboard
 
 **Screen:** navigate to the live Cloud Run URL
 (`warden-330594494974.us-central1.run.app`) in a real browser tab —
@@ -81,7 +112,7 @@ can map the labels before the fast part starts.
 
 ---
 
-## 1:10–2:40 — THE live run (this is the demo)
+## 1:30–2:55 — THE live run (this is the demo)
 
 **Action:** click the **AUS → CHI** trip pill. This is the route with
 the built-in scope violation — don't narrate over the first few steps,
@@ -136,15 +167,16 @@ just-finished card to replay it in the trace panel above.
 > actual Gemini API calls, the Firestore ledger write. Nothing here is
 > simulated for the video."
 
-*(Optional 10s, if time allows: trigger **SFO → SIN** briefly to show
-the escalate path — a flight alone crosses the $2,000 cap, guardrail
-fires deterministically, trip pauses for a human, no model even runs.
-Cut fast if you're tight on time — the block→retry moment above is the
-one that has to land.)*
+*(Not in the timed budget above — only add this if a rehearsal run
+comes in under time: trigger **SFO → SIN** to show the escalate path,
+a flight alone crosses the $2,000 cap, guardrail fires
+deterministically, trip pauses for a human, no model even runs. The
+block→retry moment above is the one that has to land; don't let this
+push it out of the cut.)*
 
 ---
 
-## 2:40–3:15 — What's under the hood judges won't see by clicking around
+## 2:55–3:25 — What's under the hood judges won't see by clicking around
 
 **Screen:** Figure 3 of the architecture diagram (Cloud Run vs. Agent
 Engine), or a terminal window with the verification output if you'd
@@ -168,7 +200,7 @@ it reads clearly on camera.)*
 
 ---
 
-## 3:15–3:45 — Production-readiness, honestly
+## 3:25–3:50 — Production-readiness, honestly
 
 **Say (over the dashboard, calm, no urgency):**
 > "None of this was theoretical. Building this against real Google
@@ -182,7 +214,7 @@ it reads clearly on camera.)*
 
 ---
 
-## 3:45–4:00 — Close
+## 3:50–4:05 — Close
 
 **Screen:** back to the dashboard, or the GitHub repo.
 
@@ -197,20 +229,26 @@ it reads clearly on camera.)*
 
 ## Shot list summary (for whoever's screen-recording)
 
-1. Talking head / title card — hook (0:20)
-2. `docs/architecture.html` Figure 1, then Figure 2 (0:35)
-3. Live dashboard, deployed URL, four columns named (0:15)
-4. **Click AUS → CHI, let the full trip run uninterrupted on screen** (1:30) — the take to protect
-5. Transactions card click-to-replay + hover popovers (0:20)
-6. Google Platform column, scrolled to show real entries (0:10)
-7. Architecture diagram Figure 3 (Agent Engine) or terminal proof (0:35)
-8. Talking head — production-readiness honesty beat (0:30)
-9. Close card (0:15)
+1. Real news screenshots (2 real articles, self-captured) → talking
+   head / title card — hook (0:25)
+2. Google toolkit slide or README component table (0:20)
+3. `docs/architecture.html` Figure 1, then Figure 2 (0:30)
+4. Live dashboard, deployed URL, four columns named (0:15)
+5. **Click AUS → CHI, let the full trip run uninterrupted on screen** (1:25) — the take to protect
+6. Transactions card click-to-replay + hover popovers (folded into 5)
+7. Google Platform column, scrolled to show real entries (folded into 5)
+8. Architecture diagram Figure 3 (Agent Engine) or terminal proof (0:30)
+9. Talking head — production-readiness honesty beat (0:25)
+10. Close card (0:15)
 
 ## Notes for the next draft
 
-- Timings above sum to ~4:10 — trim the optional SFO→SIN insert first,
-  then tighten the architecture recap (0:20–0:55) if still over.
+- Timings above sum to ~4:05 — close enough that fine-trimming during
+  rehearsal (not a structural cut) should land it at 4:00.
+- **News screenshots must be real, self-captured pages** — see the
+  sourcing note under the Hook. No recreated headlines, no mockups; if
+  a cleared, higher-quality source turns up, swap it in, but never
+  substitute a generated image.
 - Say the deployed URL out loud on camera once — a judge should never
   have to wonder if this is running locally.
 - If re-recording the live-run take, clear `audit_log`/`transactions`
@@ -219,3 +257,6 @@ it reads clearly on camera.)*
   matches the "numbers and record should stay aligned" fix already
   shipped, and looks more deliberate on camera than a big pre-existing
   count.
+- The SFO→SIN escalate-path insert is intentionally cut from the timed
+  budget now that the toolkit beat is in — only add it back if a
+  rehearsal comes in under 4:00 with room to spare.
