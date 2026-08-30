@@ -88,6 +88,14 @@ current Agent Engine pricing for your own project:
 import vertexai
 from vertexai import agent_engines
 vertexai.init(project='your-project-id', location='us-central1')
-agent_engines.delete('projects/.../locations/us-central1/reasoningEngines/...')
+# force=True needed if you've queried it at all — querying creates a
+# child 'sessions' resource, and delete() without force refuses to
+# remove a resource that still has children. Verified live: deleting
+# right after the stream_query() test above hit exactly this.
+agent_engines.delete('projects/.../locations/us-central1/reasoningEngines/...', force=True)
 "
 ```
+
+This repo's own deployment was created, verified live, and deleted again
+within the same session — confirmed via `agent_engines.list()` returning
+zero resources afterward. Nothing from this module is left running.
