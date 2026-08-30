@@ -1025,9 +1025,25 @@ function wardenApp() {
     },
 
     get stats() {
+      // Derived from transactions, not the raw audit ledger (this.records)
+      // — those used to disagree: any call made straight through
+      // POST /v1/authorize (demo/run_demo.py, curl, a stray test) writes
+      // to the ledger without ever creating a Transaction, so "Calls" could
+      // read e.g. 12 while zero transaction cards existed to back it up.
+      // Summing transaction steps instead makes this header describe
+      // exactly the same data the cards below it show — can't drift,
+      // by construction, and still updates live (transaction_started /
+      // decision events already push into this.transactions as a trip runs).
       const c = { allow: 0, block: 0, escalate: 0 };
-      this.records.forEach((r) => { if (c[r.decision] !== undefined) c[r.decision]++; });
-      return { total: this.records.length, ...c };
+      let total = 0;
+      this.transactions.forEach((t) => {
+        (t.steps || []).forEach((s) => {
+          if (s.kind === 'orchestrator') return; // a recovery decision, not a call
+          if (c[s.decision] !== undefined) c[s.decision]++;
+          total++;
+        });
+      });
+      return { total, ...c };
     },
     relTime(ts) {
       const diff = Math.max(0, Date.now() / 1000 - ts);
