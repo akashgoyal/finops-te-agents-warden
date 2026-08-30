@@ -62,13 +62,17 @@
      four independent feeds," before any color or label does. */
   .app-layout {
     display: grid;
-    grid-template-columns: 300px 1fr 1fr 300px;
+    /* App and Platform are read-at-a-glance rails (pills, a short feed);
+       Trace and Transactions are where the actual working detail lives,
+       but they don't need to dominate the row the way they did at 300/1fr —
+       these get real, fixed room instead of shrinking to whatever's left. */
+    grid-template-columns: 360px 1fr 1fr 360px;
     gap: 16px;
     padding: 16px;
     min-height: 100vh; min-height: 100dvh;
     align-items: stretch;
   }
-  @media (max-width: 1500px) { .app-layout { grid-template-columns: 270px 1fr 1fr 270px; } }
+  @media (max-width: 1500px) { .app-layout { grid-template-columns: 320px 1fr 1fr 320px; } }
   @media (max-width: 1180px) {
     .app-layout { grid-template-columns: 1fr 1fr; }
     .col-app, .col-platform { grid-column: 1 / -1; }
@@ -136,30 +140,44 @@
   .col-txns .stats { grid-template-columns: repeat(2, 1fr); }
   .col-txns .col-pill-body { padding-top: 14px; }
 
-  /* ---------- column 4: Google Platform — deep indigo, Cloud-blue accent ---------- */
-  /* Deliberately its own third dark palette (not a copy of .col-txns'):
-     same family as the Google-Cloud-blue used for infra elements in
-     docs/architecture.html, so this column reads as "the same blue"
-     wherever a viewer has seen this project before. */
+  /* ---------- column 4: Google Platform — Google's own brand palette ---------- */
+  /* The dark-mode variants of Google's actual four brand colors (the ones
+     Material dark themes use, not the flat light-mode hexes) — blue for
+     the platform accent, and the other three doing the same allow/block/
+     escalate duty they do everywhere else in this dashboard, just drawn
+     from Google's palette instead of the neutral one. This is the one
+     column whose whole point is "this touched Google's infrastructure,"
+     so it's the one column that gets to look like it. */
   .col-platform {
-    --bg: #0b1220;
-    --surface: #131c30;
-    --surface-2: #182238;
-    --line: #22314e;
-    --line-soft: #1c293f;
-    --ink: #e8edf8;
-    --ink-soft: #9fb0cf;
-    --ink-faint: #5c6c8c;
-    --accent: #6fa1f2;
-    --accent-ink: #071021;
-    --accent-tint: rgba(111, 161, 242, 0.16);
-    --allow: #55b6a0;
-    --allow-tint: rgba(85, 182, 160, 0.15);
-    --block: #e37f78;
-    --block-tint: rgba(227, 127, 120, 0.15);
-    --escalate: #ac9af2;
-    --escalate-tint: rgba(172, 154, 242, 0.16);
+    --bg: #0c1220;
+    --surface: #14203a;
+    --surface-2: #192848;
+    --line: #2a3f66;
+    --line-soft: #1f3252;
+    --ink: #eaf0fc;
+    --ink-soft: #a9bfe8;
+    --ink-faint: #62789f;
+    --accent: #8ab4f8;
+    --accent-ink: #062043;
+    --accent-tint: rgba(138, 180, 248, 0.18);
+    --allow: #81c995;
+    --allow-tint: rgba(129, 201, 149, 0.16);
+    --block: #f28b82;
+    --block-tint: rgba(242, 139, 130, 0.16);
+    --escalate: #fdd663;
+    --escalate-tint: rgba(253, 214, 99, 0.18);
     --shadow: 0 1px 2px rgba(0,0,0,.4), 0 16px 40px -20px rgba(0,0,0,.75);
+  }
+  /* The classic four-color strip, abstracted (never the literal logo) —
+     just a signal, under the title, that this lane is Google's palette. */
+  .col-platform .col-pill-head::after {
+    content: "";
+    display: block;
+    margin-top: 12px;
+    height: 3px;
+    width: 46px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #8ab4f8 0 25%, #f28b82 25% 50%, #fdd663 50% 75%, #81c995 75% 100%);
   }
 
   /* ---------- top bar ---------- */
