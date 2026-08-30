@@ -718,12 +718,156 @@
   </section>
 
   <!-- ============================================================ -->
-  <!-- FIGURE 4 — Fortified Enterprise Fleet component mapping         -->
+  <!-- FIGURE 4 — two scenario walkthroughs                            -->
   <!-- ============================================================ -->
 
   <section>
     <div class="section-head">
-      <div class="section-num">04 — Google Cloud &amp; AI platform</div>
+      <div class="section-num">04 — Two calls a fleet agent shouldn't be able to make</div>
+      <h2>Same gateway, two different breaches, two different mechanisms</h2>
+      <p class="section-note">
+        Not two hypotheticals — these are the exact calls
+        <code>demo/trips.py</code> and <code>demo/scopes.py</code> make on
+        every real run. Same Gateway entry point both times; what differs
+        is which layer actually catches it, and what happens next.
+      </p>
+    </div>
+
+    <figure>
+      <div class="fig-frame">
+        <svg viewBox="0 0 1080 1000" role="img" aria-label="Two real scenarios traced step by step. Scenario one: payment_agent attempts to charge $2,450 for an SFO to SIN flight against a $2,000 hard cap. The registry confirms payment_agent's scope and cap, the deterministic guardrail compares $2,450 to $2,000, the limit fires before any model runs, the call is escalated, and the trip pauses — hotel and cab steps never execute. Scenario two: hotel_agent, scoped only for hotel.search and hotel.hold, attempts payments.charge for $195 on an AUS to CHI trip. The registry confirms hotel_agent's narrower scope, the guardrail has no dollar cap configured for hotel_agent so it passes through, triage sees the tool is outside hotel_agent's allowed list and escalates straight to review, the ADK reviewer blocks the call as unauthorized, the orchestrator finds payment_agent is the only agent scoped for payments.charge and decides to retry, the retried call passes the guardrail since $195 is under payment_agent's cap, and the call is allowed with a signed token — the trip continues to the cab steps.">
+          <defs>
+            <marker id="arrow-ink-4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+            <marker id="arrow-escalate-4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--escalate)"/>
+            </marker>
+            <marker id="arrow-block-4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--block)"/>
+            </marker>
+            <marker id="arrow-accent-4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+            </marker>
+            <marker id="arrow-allow-4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--allow)"/>
+            </marker>
+          </defs>
+
+          <!-- ===================== column headers ===================== -->
+          <text x="270" y="26" text-anchor="middle" class="dg-node-title" fill="var(--escalate)">Scenario 1 — breaching the spend limit</text>
+          <text x="270" y="44" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">SFO → SIN · payment_agent · flights.search onward</text>
+
+          <text x="810" y="26" text-anchor="middle" class="dg-node-title" fill="var(--block)">Scenario 2 — breaching access scope</text>
+          <text x="810" y="44" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">AUS → CHI · hotel_agent tries a payment tool</text>
+
+          <!-- ===================== SCENARIO 1 (left column) ===================== -->
+
+          <rect x="40" y="70" width="460" height="72" rx="9" fill="var(--surface-2)" stroke="var(--line-strong)"/>
+          <text x="270" y="93" text-anchor="middle" class="dg-node-title" fill="var(--ink)">payment_agent → payments.charge</text>
+          <text x="270" y="111" text-anchor="middle" class="dg-node-sub" fill="var(--ink-soft)">amount_usd: 2,450 · user_confirmed: true</text>
+          <text x="270" y="128" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">flight alone, SFO → SIN</text>
+
+          <line x1="270" y1="142" x2="270" y2="176" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow-ink-4)"/>
+
+          <rect x="40" y="180" width="460" height="60" rx="9" fill="var(--infra-tint)" stroke="var(--infra)"/>
+          <text x="270" y="203" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Registry lookup</text>
+          <text x="270" y="221" text-anchor="middle" class="dg-node-sub" fill="var(--infra)">payment_agent found · cap: $2,000</text>
+
+          <line x1="270" y1="240" x2="270" y2="274" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow-ink-4)"/>
+
+          <rect x="40" y="278" width="460" height="72" rx="9" fill="var(--surface-2)" stroke="var(--line-strong)"/>
+          <text x="270" y="301" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Guardrail — plain code</text>
+          <text x="270" y="319" text-anchor="middle" class="dg-node-sub" fill="var(--ink-soft)">$2,450 &gt; $2,000 cap</text>
+          <text x="270" y="336" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">no model has run yet</text>
+
+          <line x1="270" y1="350" x2="270" y2="384" stroke="var(--escalate)" stroke-width="1.5" marker-end="url(#arrow-escalate-4)"/>
+          <text x="290" y="372" class="dg-arrow-label" fill="var(--escalate)">limit fires</text>
+
+          <rect x="40" y="388" width="460" height="72" rx="9" fill="var(--escalate-tint)" stroke="var(--escalate)"/>
+          <text x="270" y="411" text-anchor="middle" class="dg-node-title" fill="var(--ink)">ESCALATE</text>
+          <text x="270" y="429" text-anchor="middle" class="dg-node-sub" fill="var(--ink-soft)">human approval required</text>
+          <text x="270" y="446" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">regardless of user_confirmed</text>
+
+          <line x1="270" y1="460" x2="270" y2="494" stroke="var(--escalate)" stroke-width="1.5" marker-end="url(#arrow-escalate-4)"/>
+
+          <rect x="40" y="498" width="460" height="72" rx="9" fill="var(--surface)" stroke="var(--line)" stroke-dasharray="3 3"/>
+          <text x="270" y="521" text-anchor="middle" class="dg-node-title" fill="var(--ink-soft)">Trip pauses</text>
+          <text x="270" y="539" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">hotel_agent, cab_agent steps</text>
+          <text x="270" y="556" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">never execute</text>
+
+          <!-- ===================== SCENARIO 2 (right column) ===================== -->
+
+          <rect x="580" y="70" width="460" height="72" rx="9" fill="var(--surface-2)" stroke="var(--line-strong)"/>
+          <text x="810" y="93" text-anchor="middle" class="dg-node-title" fill="var(--ink)">hotel_agent → payments.charge</text>
+          <text x="810" y="111" text-anchor="middle" class="dg-node-sub" fill="var(--ink-soft)">amount_usd: 195 · user_confirmed: true</text>
+          <text x="810" y="128" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">"already have the total, charging it now"</text>
+
+          <line x1="810" y1="142" x2="810" y2="176" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow-ink-4)"/>
+
+          <rect x="580" y="180" width="460" height="60" rx="9" fill="var(--infra-tint)" stroke="var(--infra)"/>
+          <text x="810" y="203" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Registry lookup</text>
+          <text x="810" y="221" text-anchor="middle" class="dg-node-sub" fill="var(--infra)">hotel_agent scope: hotel.search, hotel.hold</text>
+
+          <line x1="810" y1="240" x2="810" y2="274" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow-ink-4)"/>
+
+          <rect x="580" y="278" width="460" height="60" rx="9" fill="var(--surface-2)" stroke="var(--line-strong)"/>
+          <text x="810" y="301" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Guardrail — plain code</text>
+          <text x="810" y="319" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">no $ cap on hotel_agent — passes through</text>
+
+          <line x1="810" y1="338" x2="810" y2="372" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow-ink-4)"/>
+
+          <rect x="580" y="376" width="460" height="60" rx="9" fill="var(--surface-2)" stroke="var(--line-strong)"/>
+          <text x="810" y="399" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Triage — Gemma</text>
+          <text x="810" y="417" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">payments.charge not in allowed_tools</text>
+
+          <line x1="810" y1="436" x2="810" y2="470" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow-ink-4)"/>
+          <text x="830" y="458" class="dg-arrow-label" fill="var(--ink-faint)">escalate to review</text>
+
+          <rect x="580" y="474" width="460" height="60" rx="9" fill="var(--block-tint)" stroke="var(--block)"/>
+          <text x="810" y="497" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Reviewer (Gemini) — BLOCK</text>
+          <text x="810" y="515" text-anchor="middle" class="dg-node-sub" fill="var(--block)">hotel_agent not authorized for payments.charge</text>
+
+          <line x1="810" y1="534" x2="810" y2="568" stroke="var(--block)" stroke-width="1.5" marker-end="url(#arrow-block-4)"/>
+
+          <rect x="580" y="572" width="460" height="60" rx="9" fill="var(--surface-2)" stroke="var(--line-strong)"/>
+          <text x="810" y="595" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Orchestrator</text>
+          <text x="810" y="613" text-anchor="middle" class="dg-node-sub" fill="var(--ink-faint)">only payment_agent is scoped for this tool</text>
+
+          <line x1="810" y1="632" x2="810" y2="666" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arrow-accent-4)"/>
+          <text x="830" y="654" class="dg-arrow-label" fill="var(--accent)">retry via payment_agent</text>
+
+          <rect x="580" y="670" width="460" height="60" rx="9" fill="var(--accent-tint)" stroke="var(--accent)"/>
+          <text x="810" y="693" text-anchor="middle" class="dg-node-title" fill="var(--ink)">Retry: payment_agent → payments.charge</text>
+          <text x="810" y="711" text-anchor="middle" class="dg-node-sub" fill="var(--accent)">same $195 · guardrail passes, under $2,000 cap</text>
+
+          <line x1="810" y1="730" x2="810" y2="764" stroke="var(--allow)" stroke-width="1.5" marker-end="url(#arrow-allow-4)"/>
+
+          <rect x="580" y="768" width="460" height="60" rx="9" fill="var(--allow-tint)" stroke="var(--allow)"/>
+          <text x="810" y="791" text-anchor="middle" class="dg-node-title" fill="var(--ink)">ALLOW — token signed</text>
+          <text x="810" y="809" text-anchor="middle" class="dg-node-sub" fill="var(--allow)">trip continues to cab_agent steps</text>
+        </svg>
+      </div>
+      <figcaption>
+        <b>The mechanism difference, in one line:</b> the spend limit is a
+        property of the <i>call</i> (a dollar amount checked in plain code,
+        no judgment involved, so it can't be talked around) — the access
+        breach is a property of <i>who's calling</i> (a scope violation,
+        which needs a judgment call on whether recovery is reasonable, so
+        it goes to the reviewer and then the orchestrator). Same Gateway,
+        same registry, genuinely different enforcement paths because
+        they're genuinely different kinds of problems.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- FIGURE 5 — Fortified Enterprise Fleet component mapping         -->
+  <!-- ============================================================ -->
+
+  <section>
+    <div class="section-head">
+      <div class="section-num">05 — Google Cloud &amp; AI platform</div>
       <h2>What's used, and what for</h2>
       <p class="section-note">
         The Fortified Enterprise Fleet track names specific infrastructure
