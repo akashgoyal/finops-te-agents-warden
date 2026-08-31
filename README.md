@@ -48,13 +48,58 @@ executes, not after Finance finds it on a statement.
   full request-flow diagram, two scenario walkthroughs (breaching the
   spend limit, breaching access scope), the backend-swap comparison,
   and the Google Cloud stack breakdown.
-- **Blog write-up** — [`devto-blog-draft.md`](devto-blog-draft.md) —
-  a narrative walkthrough of what was built and why, with screenshots
-  of it actually running; publishing to dev.to (link goes here once
-  live).
+- **Blog write-up** —
+  https://dev.to/akash_goyal/how-i-built-warden-an-authorization-gateway-for-agentic-fleets-on-google-cloud-48lp
+  — a narrative walkthrough of what was built and why, with
+  screenshots of it actually running ([source](devto-blog-draft.md)).
 - **Source** — this repo.
 
 Runs entirely on Google's free tier — see [Cost](#cost) below.
+
+## Reproducible testing instructions
+
+For verifying the claims above against the real thing, not just
+reading them:
+
+1. **Automated tests** — deterministic, stub mode, no network calls:
+   ```bash
+   make install
+   make test
+   ```
+2. **Trigger a live trip** on the deployed app, no login needed:
+   ```bash
+   curl -X POST https://warden-330594494974.us-central1.run.app/v1/trips/run \
+     -H "Content-Type: application/json" -d '{"preset_id":"aus-chi"}'
+   ```
+   Or just click the **AUS → CHI** pill at the live URL and watch it
+   block, then recover, in real time.
+3. **Confirm it actually persisted**, not just displayed:
+   ```bash
+   curl https://warden-330594494974.us-central1.run.app/v1/transactions
+   ```
+4. **Reproduce Model Armor screening a real call** (needs a
+   billing-enabled GCP project):
+   ```bash
+   bash scripts/setup_model_armor.sh
+   # paste the four env vars it prints into .env (MODEL_BACKEND=vertex, ...)
+   make dev
+   ```
+   Click **AUS → CHI** locally and hover the BLOCK card — the 🛡️ badge
+   shows the real Model Armor template name, read live off the result.
+5. **Reproduce Agent Identity + Memory Bank** on Vertex AI Agent Engine:
+   ```bash
+   cd agent_engine && python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
+   GOOGLE_CLOUD_PROJECT=your-project-id .venv/bin/python deploy_reviewer.py
+   ```
+   Query the printed resource and read back `spec.effectiveIdentity`
+   and `contextSpec.memoryBankConfig` — exact commands in
+   `agent_engine/README.md`.
+6. **Verify the deployed Cloud Run config directly**, not from this
+   README:
+   ```bash
+   gcloud run services describe warden --region=us-central1 --project=finops-te-agent-warden \
+     --format="value(status.latestReadyRevisionName)"
+   ```
 
 ---
 
