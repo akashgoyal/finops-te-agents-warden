@@ -7,7 +7,9 @@ into the main `warden/` gateway's live call path.
 
 ## What's verified, not assumed
 
-Deployed for real (`projects/330594494974/locations/us-central1/reasoningEngines/3266347230180671488`)
+Deployed for real (`projects/330594494974/locations/us-central1/reasoningEngines/5550094453722578944`
+— redeployed once already, since this resource doesn't scale to zero
+and gets deleted between demo sessions; the ID changes each time)
 and checked directly against the live resource, not the docs:
 
 - **Agent Identity is real.** The resource's `spec.effectiveIdentity` is
@@ -30,12 +32,21 @@ and checked directly against the live resource, not the docs:
   model-catalog ceiling on this project's Vertex AI access found earlier
   with Model Armor.
 - **Observability: configured, not independently confirmed.**
-  `AdkApp(enable_tracing=True)` sets `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true`
-  on the deployed spec (visible in the resource's raw JSON), but a Cloud
-  Trace API query for this project came back empty after a real call and
-  a wait, with `cloudtrace.googleapis.com` confirmed enabled. Reporting
-  this as configured-but-unconfirmed rather than claiming a trace was
-  actually seen.
+  `enable_tracing=True` on `AdkApp` turned out to be deprecated — it
+  only sets `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true`, not the
+  full set Google's [current tracing docs](https://docs.cloud.google.com/agent-builder/agent-engine/manage/tracing)
+  actually call for. `deploy_reviewer.py` now also passes
+  `OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental` and
+  `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=EVENT_ONLY` via
+  `env_vars=` on `create()` — all three confirmed present on the
+  deployed resource's raw JSON. Even with all three set, a Cloud Trace
+  API query for this project still comes back empty after a real call
+  and a wait, with `cloudtrace.googleapis.com` and `telemetry.googleapis.com`
+  both confirmed enabled. Reporting this as configured-but-unconfirmed,
+  not claiming a trace was actually seen — and traces may show up on
+  the newer `console.cloud.google.com/agent-platform/runtimes` page's
+  Traces tab even where the Trace API doesn't surface them; that
+  Console path hasn't been checked with a live login.
 
 ## Why a separate venv
 

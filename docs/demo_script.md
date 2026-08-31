@@ -160,9 +160,12 @@ screen.
 **Say:**
 > "Warden: an authorization gateway for an agentic fleet, built on
 > Gemini, ADK, Cloud Run, Firestore, and Vertex AI, that fails closed
-> instead of failing open. Repo and live link are below."
+> instead of failing open. Repo, live link, and a full write-up are
+> below."
 
-**On-screen end card:** GitHub URL, live Cloud Run URL.
+**On-screen end card:** GitHub URL, live Cloud Run URL, and the
+published dev.to post:
+https://dev.to/akash_goyal/how-i-built-warden-an-authorization-gateway-for-agentic-fleets-on-google-cloud-48lp
 
 ---
 
@@ -179,19 +182,20 @@ on a cold page load mid-take.
    `https://console.cloud.google.com/run/detail/us-central1/warden/revisions?project=finops-te-agent-warden`
 4. **Firestore data browser** (optional third proof — transactions/audit_log collections):
    `https://console.cloud.google.com/firestore/databases/-default-/data/panel?project=finops-te-agent-warden`
-5. **Vertex AI Agent Engine resource** (best-guess Console path — Console
-   navigation for this specific product wasn't verified with a live login
-   this session, so treat this as a starting point, not a sure thing):
-   `https://console.cloud.google.com/vertex-ai/agents/agent-engines/5550094453722578944?project=finops-te-agent-warden`
-   — **fallback if that 404s:** use Console's top search bar, type
-   "Agent Engine" or "Reasoning Engine", or the Cloud Logging link below
-   instead, which *is* verified (it's what `gcloud`/the deploy script
-   itself printed when the resource was created):
+5. **Vertex AI Agent Engine resource** — the Console has moved this
+   under the newer Gemini Enterprise Agent Platform surface, per
+   Google's own [tracing docs](https://docs.cloud.google.com/agent-builder/agent-engine/manage/tracing):
+   `https://console.cloud.google.com/agent-platform/runtimes?project=finops-te-agent-warden`
+   — select `warden-policy-reviewer`, then the **Traces** tab. Sourced
+   from Google's docs, not a guess, but still not clicked through with
+   a live login this session — confirm it resolves before recording.
+   **Fallback that *is* fully verified** (it's what the deploy script
+   itself printed): the Cloud Logging link below.
    `https://console.cloud.google.com/logs/query;query=resource.labels.reasoning_engine_id%3D%225550094453722578944%22?project=finops-te-agent-warden`
 6. **The live URL itself** (say it out loud in the demo segment):
    `https://warden-330594494974.us-central1.run.app` (or the equivalent
    `https://warden-5eio2cxkqa-uc.a.run.app` — both resolve to the same
-   service; confirmed live moments ago)
+   service; both re-checked live just now, both 200)
 
 **If the Cloud Run deep links 404 or look stale** (Console URLs shift
 occasionally): go to `console.cloud.google.com/run`, select project
@@ -223,12 +227,17 @@ project's infrastructure that doesn't scale to zero.
 - Record the Cloud Run Console segment as its own clean take, right
   after finishing a live trip, so the log timestamps visibly match
   what was just demoed on screen.
-- The Agent Engine resource link above (`agent-engines/...`) is an
-  educated guess at the current Console path for this specific,
-  fast-moving product — confirm it resolves *before* you're recording,
-  not during. The Cloud Logging link and the live terminal query are
-  both verified working right now and make a safe fallback or
-  replacement for that whole segment.
+- The Agent Engine `agent-platform/runtimes` link above is sourced
+  from Google's own docs, not guessed, but still hasn't been clicked
+  through live this session — confirm it resolves *before* you're
+  recording, not during. The Cloud Logging link and the live terminal
+  query are both verified working right now and make a safe fallback
+  or replacement for that whole segment.
+- Checked again just now: a Cloud Trace query for this reasoning
+  engine still comes back empty, even with the full tracing env vars
+  now set on the resource (see `agent_engine/README.md`) — so don't
+  plan on showing a trace in the Console; Identity + Memory Bank
+  remain the two things this segment can actually prove.
 - If you want the longer, more architecture-detailed cut instead of
   this one, an earlier draft is in git history (commit `53ec929`) —
   covers the backend-swap design in more depth, runs ~4:05, predates
