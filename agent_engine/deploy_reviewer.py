@@ -79,6 +79,13 @@ def deploy():
     vertexai.init(project=project, location=location, staging_bucket=staging_bucket)
 
     agent = build_agent()
+    # enable_tracing=True is deprecated — verified live: it only sets
+    # GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY on the deployed spec,
+    # and a real Cloud Trace query for this project came back empty.
+    # Google's current tracing docs (docs.cloud.google.com/agent-builder/
+    # agent-engine/manage/tracing) want these three env vars instead —
+    # passed explicitly below so create() bakes them into the deployed
+    # resource, not relying on the deprecated flag alone.
     app = agent_engines.AdkApp(agent=agent, enable_tracing=True)
 
     print(f"==> Deploying warden_policy_reviewer to Agent Engine ({project}/{location})")
@@ -87,6 +94,11 @@ def deploy():
         requirements=["google-adk", "google-cloud-aiplatform[agent_engines]"],
         display_name="warden-policy-reviewer",
         description="Warden's ADK policy reviewer, deployed for a real Vertex AI Agent Identity.",
+        env_vars={
+            "GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY": "true",
+            "OTEL_SEMCONV_STABILITY_OPT_IN": "gen_ai_latest_experimental",
+            "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT": "EVENT_ONLY",
+        },
     )
 
     print("==> Deployed:", remote.resource_name)

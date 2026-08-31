@@ -147,7 +147,7 @@ screen.
 > import vertexai
 > from vertexai import agent_engines
 > vertexai.init(project='finops-te-agent-warden', location='us-central1')
-> agent_engines.delete('projects/330594494974/locations/us-central1/reasoningEngines/6509220436864139264', force=True)
+> agent_engines.delete('projects/330594494974/locations/us-central1/reasoningEngines/5550094453722578944', force=True)
 > "
 > ```
 
@@ -182,12 +182,12 @@ on a cold page load mid-take.
 5. **Vertex AI Agent Engine resource** (best-guess Console path — Console
    navigation for this specific product wasn't verified with a live login
    this session, so treat this as a starting point, not a sure thing):
-   `https://console.cloud.google.com/vertex-ai/agents/agent-engines/6509220436864139264?project=finops-te-agent-warden`
+   `https://console.cloud.google.com/vertex-ai/agents/agent-engines/5550094453722578944?project=finops-te-agent-warden`
    — **fallback if that 404s:** use Console's top search bar, type
    "Agent Engine" or "Reasoning Engine", or the Cloud Logging link below
    instead, which *is* verified (it's what `gcloud`/the deploy script
    itself printed when the resource was created):
-   `https://console.cloud.google.com/logs/query;query=resource.labels.reasoning_engine_id%3D%226509220436864139264%22?project=finops-te-agent-warden`
+   `https://console.cloud.google.com/logs/query;query=resource.labels.reasoning_engine_id%3D%225550094453722578944%22?project=finops-te-agent-warden`
 6. **The live URL itself** (say it out loud in the demo segment):
    `https://warden-330594494974.us-central1.run.app` (or the equivalent
    `https://warden-5eio2cxkqa-uc.a.run.app` — both resolve to the same
@@ -199,7 +199,7 @@ occasionally): go to `console.cloud.google.com/run`, select project
 same destination, zero risk of showing a broken link on camera.
 
 **Agent Engine resource, redeployed for this video**: currently live at
-`projects/330594494974/locations/us-central1/reasoningEngines/6509220436864139264`,
+`projects/330594494974/locations/us-central1/reasoningEngines/5550094453722578944`,
 verified working (`effectiveIdentity` is a dedicated IAM service
 account, `memoryBankConfig` present, a live query returns the correct
 `BLOCK` decision). **Delete it right after recording** — see the
