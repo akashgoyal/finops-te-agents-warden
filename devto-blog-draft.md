@@ -40,23 +40,28 @@ a strict policy for: Travel & Expense.
 ## What I built
 
 I think of it as a bouncer standing between every agent in the fleet
-and the tools it's asking to use. I built it so every attempted call
-goes through, in order:
+and the tools it's asking to use. Both agents doing the actual
+thinking here are built on Google's Agent Development Kit (ADK), and
+every attempted call goes through, in order:
 
-1. A **hard-limit check** I wrote in plain code — no model, no
-   variance. A payment over the cap stops the trip and waits for a
-   human, full stop.
+1. A **hard-limit check** I wrote in plain code — no model, no Google
+   tool involved on purpose. A payment over the cap stops the trip and
+   waits for a human, full stop; some decisions shouldn't depend on a
+   model's judgment at all.
 2. A **cheap first pass**, Gemma, that clears the obvious, in-scope
-   calls for free.
-3. A **careful review**, Gemini through Google's Agent Development
-   Kit, for anything ambiguous or out-of-scope — it reads the fleet's
-   actual policy document and returns a real decision, with a reason.
-4. If a call gets blocked, I let a second agent decide — live, not
-   scripted — whether to retry the same step through the agent that's
-   actually allowed to do it, or abort the trip.
+   calls for free before anything heavier gets involved.
+3. A **careful review** — an ADK agent running on Gemini — for
+   anything ambiguous or out-of-scope. It reads the fleet's actual
+   policy document and returns a real decision, with a reason.
+4. If a call gets blocked, a second ADK agent, also on Gemini, decides
+   — live, not scripted — whether to retry the same step through the
+   agent that's actually allowed to do it, or abort the trip.
 
-Every decision, allowed or blocked, gets written to a tamper-evident
-log before anything happens next.
+Every decision, allowed or blocked, gets written to Firestore as a
+tamper-evident log before anything happens next. So the pipeline runs
+on three pieces of the Google stack end to end: Gemini and Gemma doing
+the actual judgment calls, ADK structuring the two agents that make
+them, and Firestore making sure none of it gets lost.
 
 ![Warden's full request-flow architecture — intercept, guardrail, triage, review, orchestrator, ledger](blog-images/8_architecture_pipeline.png)
 *The full pipeline I built. I go into more depth on this — including
