@@ -58,10 +58,12 @@ and the tools it's asking to use. Both agents doing the actual
 thinking here are built on Google's Agent Development Kit (ADK), and
 every attempted call goes through, in order:
 
-1. A **hard-limit check** I wrote in plain code — no model, no Google
-   tool involved on purpose. A payment over the cap stops the trip and
-   waits for a human, full stop; some decisions shouldn't depend on a
-   model's judgment at all.
+1. A **hard-limit check** — no model runs for this one, on purpose.
+   It reads the cap straight from the agent's own scope, stored as
+   data in the same Firestore registry entry you'll see a screenshot
+   of below. A payment over that cap stops the trip and waits for a
+   human, full stop; some decisions shouldn't be a model's judgment
+   call at all.
 2. A **cheap first pass**, Gemma, that clears the obvious, in-scope
    calls for free before anything heavier gets involved.
 3. A **careful review** — an ADK agent running on Gemini — for
