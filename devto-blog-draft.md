@@ -20,6 +20,20 @@ flight, hold a booking, charge a card — before it executes, not after.
 - **Architecture walkthrough:** https://akashgoyal.github.io/aiml/blog/warden-architecture.html
 - **Source:** https://github.com/akashgoyal/finops-te-agents-warden
 
+### In this post
+
+| Section | Google tools covered |
+|---|---|
+| [Why I built this](#why-i-built-this) | — |
+| [What I built](#what-i-built) | Gemini, Gemma, Google ADK, Firestore |
+| [Watching it run](#watching-it-run) | — |
+| [From my laptop to Google Cloud](#from-my-laptop-to-google-cloud) | Cloud Run, Google AI Studio |
+| [Making every decision persist](#making-every-decision-persist) | Firestore |
+| [Adding Model Armor as an extra layer](#adding-model-armor-as-an-extra-layer) | Vertex AI, Model Armor |
+| [Where things actually stand](#where-things-actually-stand) | Vertex AI Agent Engine |
+| [Setting up the Google Cloud tools I used](#setting-up-the-google-cloud-tools-i-used) | Cloud Run, Firestore, Vertex AI, Model Armor, Vertex AI Agent Engine |
+| [Try it yourself](#try-it-yourself) | — |
+
 ## Why I built this
 
 2026 didn't wait long to hand me real examples of agents doing things

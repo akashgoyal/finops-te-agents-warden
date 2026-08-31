@@ -48,6 +48,10 @@ executes, not after Finance finds it on a statement.
   full request-flow diagram, two scenario walkthroughs (breaching the
   spend limit, breaching access scope), the backend-swap comparison,
   and the Google Cloud stack breakdown.
+- **Blog write-up** — [`devto-blog-draft.md`](devto-blog-draft.md) —
+  a narrative walkthrough of what was built and why, with screenshots
+  of it actually running; publishing to dev.to (link goes here once
+  live).
 - **Source** — this repo.
 
 Runs entirely on Google's free tier — see [Cost](#cost) below.
